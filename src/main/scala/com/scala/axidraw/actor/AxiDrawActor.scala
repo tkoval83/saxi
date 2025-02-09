@@ -270,8 +270,8 @@ object AxiDrawActor {
       val dy = currentInstant.p.y - previousInstant.p.y
 
       // Обчислення "сирих" кроків з урахуванням накопиченої похибки
-      val rawX = dx * options.stepsPerMm + errorX
-      val rawY = dy * options.stepsPerMm + errorY
+      val rawX = dx * options.stepsPerInch + errorX
+      val rawY = dy * options.stepsPerInch + errorY
 
       // Розділення на дробову та цілу частини
       val (fracX, intX) = modf(rawX)
