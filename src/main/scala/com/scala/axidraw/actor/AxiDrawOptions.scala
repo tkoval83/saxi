@@ -10,8 +10,8 @@ object AxiDrawOptions {
   /** Типи помилок валідації */
   sealed trait ValidationError
   case object InvalidPosition extends ValidationError
-  case object InvalidSpeed    extends ValidationError
-  case object InvalidModel    extends ValidationError
+  case object InvalidSpeed extends ValidationError
+  case object InvalidModel extends ValidationError
 
   /**
     * Завантаження конфігурації з файлу
@@ -50,7 +50,7 @@ object AxiDrawOptions {
   private def validateOptions(options: AxiDrawOptions): ValidatedNel[ValidationError, AxiDrawOptions] = {
     val positionValid = Validated.condNel(
       (0 to 100).contains(options.penUpPosition) &&
-        (0 to 100).contains(options.penDownPosition),
+      (0 to 100).contains(options.penDownPosition),
       options,
       InvalidPosition
     )
@@ -90,20 +90,20 @@ object AxiDrawOptions {
   * @param portConfig        Опційне налаштування порту
   */
 case class AxiDrawOptions private (
-    timesliceMs: Int,
-    microsteppingMode: Int,
-    penUpPosition: Int,
-    penUpSpeed: Int,
-    penUpDelay: Int,
-    penDownPosition: Int,
-    penDownSpeed: Int,
-    penDownDelay: Int,
-    acceleration: Double,
-    maxVelocity: Double,
-    cornerFactor: Double,
-    model: String,
-    port: Option[String],
-    portConfig: Option[String]
+  timesliceMs: Int,
+  microsteppingMode: Int,
+  penUpPosition: Int,
+  penUpSpeed: Int,
+  penUpDelay: Int,
+  penDownPosition: Int,
+  penDownSpeed: Int,
+  penDownDelay: Int,
+  acceleration: Double,
+  maxVelocity: Double,
+  cornerFactor: Double,
+  model: String,
+  port: Option[String],
+  portConfig: Option[String]
 ) {
 
   /**

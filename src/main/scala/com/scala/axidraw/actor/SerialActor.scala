@@ -42,10 +42,10 @@ object SerialActor {
     * @param replyTo Адресат, на який буде відправлено відповідь
     */
   final case class QueryCommand(
-      data: String,
-      expectedLines: Int,
-      replyTo: ActorRef[CommandResponse],
-      correlationId: String
+    data: String,
+    expectedLines: Int,
+    replyTo: ActorRef[CommandResponse],
+    correlationId: String
   ) extends Command
 
   /**
@@ -59,14 +59,15 @@ object SerialActor {
   sealed trait CommandResponse {
     val correlationId: String
   }
-  final case class CommandSuccess(correlationId: String, command: String, response: String)        extends CommandResponse
-  final case class CommandFailure(correlationId: String, command: String, reason: String)          extends CommandResponse
-  final case class CommandTimeout(correlationId: String, command: String, partialResponse: String) extends CommandResponse
+  final case class CommandSuccess(correlationId: String, command: String, response: String) extends CommandResponse
+  final case class CommandFailure(correlationId: String, command: String, reason: String) extends CommandResponse
+  final case class CommandTimeout(correlationId: String, command: String, partialResponse: String)
+      extends CommandResponse
 
   /**
     * Внутрішні команди, що використовуються для управління таймерами та отримання даних.
     */
-  private sealed trait InternalCommand extends Command
+  sealed private trait InternalCommand extends Command
 
   /**
     * Сигнал про отримання даних з порту.
@@ -74,7 +75,7 @@ object SerialActor {
     * @param data Отримані дані
     * @param isTimeout Чи викликано цей сигнал через таймаут
     */
-  private final case class DataReceived(data: String, isTimeout: Boolean = false) extends InternalCommand
+  final private case class DataReceived(data: String, isTimeout: Boolean = false) extends InternalCommand
 
   /**
     * Представляє pending запит, для якого чекаємо відповіді.
@@ -86,17 +87,17 @@ object SerialActor {
     * @param responseBuffer Накопичені дані відповіді (залишок неповної останньої лінії)
     * @param timerKey Унікальний ключ таймера для цього запиту
     */
-  private final case class PendingCommand(
-      originalCommand: String,
-      normalizedCommand: String,
-      expectedLines: Int,
-      replyTo: ActorRef[CommandResponse],
-      responseBuffer: String,
-      timerKey: String,
-      correlationId: String
+  final private case class PendingCommand(
+    originalCommand: String,
+    normalizedCommand: String,
+    expectedLines: Int,
+    replyTo: ActorRef[CommandResponse],
+    responseBuffer: String,
+    timerKey: String,
+    correlationId: String
   )
 
-  private val MaxCommandLength: Int                   = 64
+  private val MaxCommandLength: Int = 64
   private val ResponseTimeoutDuration: FiniteDuration = 500.millis
 
   /**
@@ -138,9 +139,9 @@ object SerialActor {
     * @return Поведінка актора в стані idle.
     */
   private def idle(
-      port: SerialPort,
-      timers: TimerScheduler[Command],
-      stashBuffer: StashBuffer[Command]
+    port: SerialPort,
+    timers: TimerScheduler[Command],
+    stashBuffer: StashBuffer[Command]
   ): Behavior[Command] =
     Behaviors.receive { (context, msg) =>
       msg match {
@@ -185,10 +186,10 @@ object SerialActor {
     * @return Поведінка актора в стані waiting.
     */
   private def waiting(
-      port: SerialPort,
-      timers: TimerScheduler[Command],
-      pending: PendingCommand,
-      stashBuffer: StashBuffer[Command]
+    port: SerialPort,
+    timers: TimerScheduler[Command],
+    pending: PendingCommand,
+    stashBuffer: StashBuffer[Command]
   ): Behavior[Command] =
     Behaviors.receive { (context, msg) =>
       msg match {
@@ -213,10 +214,10 @@ object SerialActor {
         case DataReceived(data, isTimeout) =>
           context.log.debug(s"Отримано дані: '$data', isTimeout=$isTimeout")
           val newBuffer = pending.responseBuffer + data
-          val parts     = newBuffer.split("\r", -1).toVector
+          val parts = newBuffer.split("\r", -1).toVector
           context.log.debug(s"Буфер розбитий на частини: $parts")
           val completeLines = parts.init
-          val partialLine   = parts.last
+          val partialLine = parts.last
           context.log.debug(s"Повних рядків: ${completeLines.size}, очікується: ${pending.expectedLines}")
           if (completeLines.size >= pending.expectedLines) {
             val response = completeLines.take(pending.expectedLines).mkString("\r")
@@ -230,8 +231,7 @@ object SerialActor {
             timers.cancel(pending.timerKey)
             unstashAll(port, timers, stashBuffer)
           } else {
-            context.log.debug(
-              s"Недостатньо повних рядків, продовжуємо очікування. Неповний рядок: '$partialLine'")
+            context.log.debug(s"Недостатньо повних рядків, продовжуємо очікування. Неповний рядок: '$partialLine'")
             waiting(port, timers, pending.copy(responseBuffer = partialLine), stashBuffer)
           }
 
@@ -250,9 +250,9 @@ object SerialActor {
     * @return Поведінка у стані idle.
     */
   private def unstashAll(
-      port: SerialPort,
-      timers: TimerScheduler[Command],
-      stashBuffer: StashBuffer[Command]
+    port: SerialPort,
+    timers: TimerScheduler[Command],
+    stashBuffer: StashBuffer[Command]
   ): Behavior[Command] =
     stashBuffer.unstashAll(idle(port, timers, stashBuffer))
 
@@ -263,7 +263,7 @@ object SerialActor {
     * @return Either повідомлення про помилку або нормалізований рядок (закінчується CR).
     */
   private def validateCommand(data: String): Either[String, String] = {
-    val command   = data.toUpperCase
+    val command = data.toUpperCase
     val cmdWithCR = if (command.endsWith("\r")) command else s"$command\r"
     if (cmdWithCR.length > MaxCommandLength)
       Left(s"Перевищено максимальну довжину команди ($MaxCommandLength символів)")
@@ -280,7 +280,7 @@ object SerialActor {
     * @return Try, що вказує на успіх або помилку запису.
     */
   private def writeToPort(command: String, port: SerialPort): Try[Unit] = Try {
-    val bytes   = command.getBytes(StandardCharsets.US_ASCII)
+    val bytes = command.getBytes(StandardCharsets.US_ASCII)
     val written = port.writeBytes(bytes, bytes.length)
     if (written != bytes.length)
       throw new IOException(s"Записано лише $written з ${bytes.length} байт")
@@ -294,9 +294,9 @@ object SerialActor {
     * @param context Контекст актора.
     */
   private def handleWriteCommand(
-      data: String,
-      port: SerialPort,
-      context: akka.actor.typed.scaladsl.ActorContext[Command]
+    data: String,
+    port: SerialPort,
+    context: akka.actor.typed.scaladsl.ActorContext[Command]
   ): Unit =
     validateCommand(data).fold(
       error => context.log.error(s"Невірний формат команди: $error"),
@@ -319,13 +319,13 @@ object SerialActor {
     * @return Either повідомлення про помилку або PendingCommand.
     */
   private def handleQueryCommand(
-      data: String,
-      expectedLines: Int,
-      replyTo: ActorRef[CommandResponse],
-      port: SerialPort,
-      timers: TimerScheduler[Command],
-      context: akka.actor.typed.scaladsl.ActorContext[Command],
-      correlationId: String
+    data: String,
+    expectedLines: Int,
+    replyTo: ActorRef[CommandResponse],
+    port: SerialPort,
+    timers: TimerScheduler[Command],
+    context: akka.actor.typed.scaladsl.ActorContext[Command],
+    correlationId: String
   ): Either[String, PendingCommand] =
     validateCommand(data).fold(
       error => Left(error),
@@ -360,36 +360,37 @@ object SerialActor {
     * @return Try, що вказує на успіх або помилку.
     */
   private def configurePort(
-      port: SerialPort,
-      self: ActorRef[Command],
-      context: akka.actor.typed.scaladsl.ActorContext[Command]
+    port: SerialPort,
+    self: ActorRef[Command],
+    context: akka.actor.typed.scaladsl.ActorContext[Command]
   ): Try[Unit] = Try {
     port.setBaudRate(9600)
     port.setNumDataBits(8)
     port.setParity(SerialPort.NO_PARITY)
     port.setNumStopBits(SerialPort.ONE_STOP_BIT)
     if (!port.openPort()) throw new IOException("Неможливо відкрити порт")
-    port.addDataListener(new SerialPortDataListener {
-      override def getListeningEvents: Int = SerialPort.LISTENING_EVENT_DATA_AVAILABLE
-      override def serialEvent(event: SerialPortEvent): Unit = {
-        try {
-          if (event.getEventType == SerialPort.LISTENING_EVENT_DATA_AVAILABLE) {
-            val available = port.bytesAvailable()
-            if (available > 0) {
-              val buffer = new Array[Byte](available)
-              val read   = port.readBytes(buffer, buffer.length)
-              if (read > 0) {
-                val data = new String(buffer, 0, read, StandardCharsets.US_ASCII)
-                  .replace("\r\n", "\r")
-                self ! DataReceived(data)
+    port.addDataListener(
+      new SerialPortDataListener {
+        override def getListeningEvents: Int = SerialPort.LISTENING_EVENT_DATA_AVAILABLE
+        override def serialEvent(event: SerialPortEvent): Unit =
+          try {
+            if (event.getEventType == SerialPort.LISTENING_EVENT_DATA_AVAILABLE) {
+              val available = port.bytesAvailable()
+              if (available > 0) {
+                val buffer = new Array[Byte](available)
+                val read = port.readBytes(buffer, buffer.length)
+                if (read > 0) {
+                  val data = new String(buffer, 0, read, StandardCharsets.US_ASCII)
+                    .replace("\r\n", "\r")
+                  self ! DataReceived(data)
+                }
               }
             }
+          } catch {
+            case ex: Exception =>
+              context.log.error("Помилка під час читання даних", ex)
           }
-        } catch {
-          case ex: Exception =>
-            context.log.error("Помилка під час читання даних", ex)
-        }
       }
-    })
+    )
   }
 }

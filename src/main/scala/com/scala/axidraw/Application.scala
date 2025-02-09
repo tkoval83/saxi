@@ -16,7 +16,7 @@ object CommandLineOptions {
 
   /** Параметри, що задаються через командний рядок. */
   case class Options(
-      configFile: Option[String] = None
+    configFile: Option[String] = None
   )
 
   val builder: OParserBuilder[Options] = OParser.builder[Options]
@@ -39,7 +39,7 @@ object Application {
 
   private val logger = LoggerFactory.getLogger(getClass)
 
-  def main(args: Array[String]): Unit = {
+  def main(args: Array[String]): Unit =
     // Розбір аргументів командного рядка за допомогою scopt
     scopt.OParser.parse(CommandLineOptions.parser, args, CommandLineOptions.Options()) match {
       case Some(cliOptions) =>
@@ -74,7 +74,8 @@ object Application {
             com.scala.axidraw.Point(80, 90),
             com.scala.axidraw.Point(150, 20),
             com.scala.axidraw.Point(10, 10)
-          ))
+          )
+        )
         val sampleDrawing = com.scala.axidraw.Drawing(Seq(samplePath))
         system ! AxiDrawActor.Draw(sampleDrawing)
 
@@ -91,6 +92,5 @@ object Application {
         logger.error("Не вдалося розпарсити аргументи командного рядка.")
         System.exit(1)
     }
-  }
 
 }

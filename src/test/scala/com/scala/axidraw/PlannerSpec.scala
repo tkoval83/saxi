@@ -17,8 +17,8 @@ class PlannerSpec extends AnyWordSpec with Matchers {
       )
 
       // Параметри руху
-      val acceleration: Double = 16.0  // мм/с²
-      val maxVelocity: Double  = 4.0   // мм/с
+      val acceleration: Double = 16.0 // мм/с²
+      val maxVelocity: Double = 4.0 // мм/с
       val cornerFactor: Double = 0.001 // коефіцієнт корекції на поворотах
 
       // Обчислюємо план руху для заданого контуру

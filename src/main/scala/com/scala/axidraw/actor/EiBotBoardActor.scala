@@ -68,9 +68,9 @@ object EiBotBoardActor {
     * @param portBpin Номер використовуваного піну порту B (0–7)
     */
   final case class SetPenState(
-      penValue: Int,
-      duration: Option[Int] = None,
-      portBpin: Option[Int] = None
+    penValue: Int,
+    duration: Option[Int] = None,
+    portBpin: Option[Int] = None
   ) extends Command
 
   /**
@@ -163,9 +163,9 @@ object EiBotBoardActor {
       * @return Поведінка актора після обробки повідомлення
       */
     def apply(
-        msg: Command,
-        serialActor: ActorRef[SerialActor.Command],
-        context: ActorContext[Command]
+      msg: Command,
+      serialActor: ActorRef[SerialActor.Command],
+      context: ActorContext[Command]
     ): Behavior[Command]
   }
 
@@ -176,22 +176,28 @@ object EiBotBoardActor {
     */
   private object StepperMoveHandler extends CommandHandler {
     def apply(
-        msg: Command,
-        serialActor: ActorRef[SerialActor.Command],
-        context: ActorContext[Command]
+      msg: Command,
+      serialActor: ActorRef[SerialActor.Command],
+      context: ActorContext[Command]
     ): Behavior[Command] = msg match {
       case cmd @ StepperMove(duration, axisStepsA, axisStepsB) =>
         // Валідація вхідних параметрів за допомогою функціонального підходу
         val validationResult = for {
-          _ <- Either.cond(duration >= 1 && duration <= 16777215,
-                           (),
-                           s"Невірне значення duration: $duration. Має бути від 1 до 16777215.")
-          _ <- Either.cond(axisStepsA >= -16777215 && axisStepsA <= 16777215,
-                           (),
-                           s"Невірне значення AxisStepsA: $axisStepsA. Має бути від -16777215 до 16777215.")
-          _ <- Either.cond(axisStepsB >= -16777215 && axisStepsB <= 16777215,
-                           (),
-                           s"Невірне значення AxisStepsB: $axisStepsB. Має бути від -16777215 до 16777215.")
+          _ <- Either.cond(
+            duration >= 1 && duration <= 16777215,
+            (),
+            s"Невірне значення duration: $duration. Має бути від 1 до 16777215."
+          )
+          _ <- Either.cond(
+            axisStepsA >= -16777215 && axisStepsA <= 16777215,
+            (),
+            s"Невірне значення AxisStepsA: $axisStepsA. Має бути від -16777215 до 16777215."
+          )
+          _ <- Either.cond(
+            axisStepsB >= -16777215 && axisStepsB <= 16777215,
+            (),
+            s"Невірне значення AxisStepsB: $axisStepsB. Має бути від -16777215 до 16777215."
+          )
         } yield ()
 
         validationResult.fold(
@@ -211,17 +217,21 @@ object EiBotBoardActor {
               // Перевірка швидкості для осі 1 (якщо рух є)
               val speedCheck1 = if (axisSteps1 != 0) {
                 val speed1 = (math.abs(axisSteps1) * 1000.0) / duration
-                Either.cond(speed1 >= 1.31 && speed1 <= 25000,
-                            (),
-                            s"Швидкість осі 1 ($speed1 кроків/с) поза межами [1.31, 25000].")
+                Either.cond(
+                  speed1 >= 1.31 && speed1 <= 25000,
+                  (),
+                  s"Швидкість осі 1 ($speed1 кроків/с) поза межами [1.31, 25000]."
+                )
               } else Right(())
 
               // Перевірка швидкості для осі 2 (якщо рух є)
               val speedCheck2 = if (axisSteps2 != 0) {
                 val speed2 = (math.abs(axisSteps2) * 1000.0) / duration
-                Either.cond(speed2 >= 1.31 && speed2 <= 25000,
-                            (),
-                            s"Швидкість осі 2 ($speed2 кроків/с) поза межами [1.31, 25000].")
+                Either.cond(
+                  speed2 >= 1.31 && speed2 <= 25000,
+                  (),
+                  s"Швидкість осі 2 ($speed2 кроків/с) поза межами [1.31, 25000]."
+                )
               } else Right(())
 
               (speedCheck1, speedCheck2) match {
@@ -230,7 +240,8 @@ object EiBotBoardActor {
                   val command = s"XM,$duration,$axisStepsA,$axisStepsB"
                   context.log.info(s"Відправка команди StepperMove: $command")
                   val adapter = ResponseHandler.createAdapter(
-                    ResponseHandler.StepperMoveResponseHandler(cmd.correlationId))(context)
+                    ResponseHandler.StepperMoveResponseHandler(cmd.correlationId)
+                  )(context)
                   serialActor ! SerialActor.QueryCommand(command, 1, adapter, cmd.correlationId)
                   Behaviors.same
                 case (Left(err), _) =>
@@ -251,9 +262,9 @@ object EiBotBoardActor {
     */
   private object ResetHandler extends CommandHandler {
     def apply(
-        msg: Command,
-        serialActor: ActorRef[SerialActor.Command],
-        context: ActorContext[Command]
+      msg: Command,
+      serialActor: ActorRef[SerialActor.Command],
+      context: ActorContext[Command]
     ): Behavior[Command] = msg match {
       case cmd @ Reset() =>
         context.log.info("Відправка команди скидання стану")
@@ -269,9 +280,9 @@ object EiBotBoardActor {
     */
   private object EnableMotorsHandler extends CommandHandler {
     def apply(
-        msg: Command,
-        serialActor: ActorRef[SerialActor.Command],
-        context: ActorContext[Command]
+      msg: Command,
+      serialActor: ActorRef[SerialActor.Command],
+      context: ActorContext[Command]
     ): Behavior[Command] = msg match {
       case cmd @ EnableMotors(e1, e2) =>
         context.log.info(s"Генерація команди EM: $e1,$e2")
@@ -288,13 +299,13 @@ object EiBotBoardActor {
     */
   private object TogglePenHandler extends CommandHandler {
     def apply(
-        msg: Command,
-        serialActor: ActorRef[SerialActor.Command],
-        context: ActorContext[Command]
+      msg: Command,
+      serialActor: ActorRef[SerialActor.Command],
+      context: ActorContext[Command]
     ): Behavior[Command] = msg match {
       case cmd @ TogglePen(duration) =>
         val validDuration = duration.filter(d => d >= 1 && d <= 65535)
-        val command       = validDuration.fold("TP")(d => s"TP,$d")
+        val command = validDuration.fold("TP")(d => s"TP,$d")
         context.log.info(s"Відправка команди перемикання пера: $command")
         val adapter =
           ResponseHandler.createAdapter(ResponseHandler.TogglePenResponseHandler(cmd.correlationId))(context)
@@ -309,9 +320,9 @@ object EiBotBoardActor {
     */
   private object SetPenStateHandler extends CommandHandler {
     def apply(
-        msg: Command,
-        serialActor: ActorRef[SerialActor.Command],
-        context: ActorContext[Command]
+      msg: Command,
+      serialActor: ActorRef[SerialActor.Command],
+      context: ActorContext[Command]
     ): Behavior[Command] = msg match {
       case cmd @ SetPenState(value, dur, pin) =>
         val penState = if (value == 1) 1 else 0
@@ -337,9 +348,9 @@ object EiBotBoardActor {
     */
   private object QueryPenHandler extends CommandHandler {
     def apply(
-        msg: Command,
-        serialActor: ActorRef[SerialActor.Command],
-        context: ActorContext[Command]
+      msg: Command,
+      serialActor: ActorRef[SerialActor.Command],
+      context: ActorContext[Command]
     ): Behavior[Command] = msg match {
       case cmd @ QueryPen(replyTo) =>
         context.log.info("Ініціювання запиту стану пера QP")
@@ -356,9 +367,9 @@ object EiBotBoardActor {
     */
   private object ReBootHandler extends CommandHandler {
     def apply(
-        msg: Command,
-        serialActor: ActorRef[SerialActor.Command],
-        context: ActorContext[Command]
+      msg: Command,
+      serialActor: ActorRef[SerialActor.Command],
+      context: ActorContext[Command]
     ): Behavior[Command] = msg match {
       case cmd @ ReBoot() =>
         context.log.info("Ініціювання повного перезавантаження пристрою")
@@ -374,9 +385,9 @@ object EiBotBoardActor {
     */
   private object MoveHomeHandler extends CommandHandler {
     def apply(
-        msg: Command,
-        serialActor: ActorRef[SerialActor.Command],
-        context: ActorContext[Command]
+      msg: Command,
+      serialActor: ActorRef[SerialActor.Command],
+      context: ActorContext[Command]
     ): Behavior[Command] = msg match {
       case cmd @ MoveHome(stepFreq, pos1, pos2) =>
         // Перевірка діапазону для stepFrequency
@@ -391,7 +402,7 @@ object EiBotBoardActor {
           } else {
             // Якщо позиції визначені, перевіряємо їх діапазон (від -4294967 до 4294967)
             val positionsValid = pos1.forall(p => math.abs(p) <= 4294967) &&
-              pos2.forall(p => math.abs(p) <= 4294967)
+            pos2.forall(p => math.abs(p) <= 4294967)
             if (!positionsValid) {
               context.log.error("Значення позицій повинні бути в діапазоні від -4294967 до 4294967.")
               Behaviors.same
@@ -419,9 +430,9 @@ object EiBotBoardActor {
     */
   private object ConfigureModeHandler extends CommandHandler {
     def apply(
-        msg: Command,
-        serialActor: ActorRef[SerialActor.Command],
-        context: ActorContext[Command]
+      msg: Command,
+      serialActor: ActorRef[SerialActor.Command],
+      context: ActorContext[Command]
     ): Behavior[Command] = msg match {
       case cmd @ ConfigureMode(v1, v2) =>
         val command = s"SC,$v1,$v2"
@@ -463,12 +474,12 @@ object EiBotBoardActor {
       * @param replyTo Опціональний адресат для відправки повідомлень про помилку або таймаут
       */
     private case class GenericHandler(
-        correlationId: String,
-        commandName: String,
-        successHandler: String => Unit,
-        replyTo: Option[ActorRef[Response]] = None
+      correlationId: String,
+      commandName: String,
+      successHandler: String => Unit,
+      replyTo: Option[ActorRef[Response]] = None
     ) extends ResponseHandler {
-      def handle(response: SerialActor.CommandResponse, context: ActorContext[Command]): Unit = {
+      def handle(response: SerialActor.CommandResponse, context: ActorContext[Command]): Unit =
         response match {
           case SerialActor.CommandSuccess(_, _, data) if data.startsWith("OK") =>
             context.log.info(s"$commandName: успішно виконано")
@@ -483,7 +494,6 @@ object EiBotBoardActor {
             context.log.warn(s"$commandName: таймаут, часткова відповідь - $partial")
             replyTo.foreach(_ ! CommandTimeout(partial))
         }
-      }
     }
 
     /**
@@ -493,10 +503,11 @@ object EiBotBoardActor {
       */
     private[EiBotBoardActor] case class StepperMoveResponseHandler(correlationId: String) extends ResponseHandler {
       def handle(response: SerialActor.CommandResponse, context: ActorContext[Command]): Unit =
-        GenericHandler(correlationId,
-                       "StepperMove",
-                       data => context.log.info(s"StepperMove виконана успішно з даними: $data"))
-          .handle(response, context)
+        GenericHandler(
+          correlationId,
+          "StepperMove",
+          data => context.log.info(s"StepperMove виконана успішно з даними: $data")
+        ).handle(response, context)
     }
 
     /**
@@ -513,10 +524,11 @@ object EiBotBoardActor {
       */
     private[EiBotBoardActor] case class EnableMotorsResponseHandler(correlationId: String) extends ResponseHandler {
       def handle(response: SerialActor.CommandResponse, context: ActorContext[Command]): Unit =
-        GenericHandler(correlationId,
-                       "EnableMotors",
-                       data => context.log.info(s"EnableMotors виконано успішно з даними: $data"))
-          .handle(response, context)
+        GenericHandler(
+          correlationId,
+          "EnableMotors",
+          data => context.log.info(s"EnableMotors виконано успішно з даними: $data")
+        ).handle(response, context)
     }
 
     /**
@@ -524,10 +536,11 @@ object EiBotBoardActor {
       */
     private[EiBotBoardActor] case class TogglePenResponseHandler(correlationId: String) extends ResponseHandler {
       def handle(response: SerialActor.CommandResponse, context: ActorContext[Command]): Unit =
-        GenericHandler(correlationId,
-                       "TogglePen",
-                       data => context.log.info(s"TogglePen виконано успішно з даними: $data"))
-          .handle(response, context)
+        GenericHandler(
+          correlationId,
+          "TogglePen",
+          data => context.log.info(s"TogglePen виконано успішно з даними: $data")
+        ).handle(response, context)
     }
 
     /**
@@ -535,10 +548,11 @@ object EiBotBoardActor {
       */
     private[EiBotBoardActor] case class SetPenStateResponseHandler(correlationId: String) extends ResponseHandler {
       def handle(response: SerialActor.CommandResponse, context: ActorContext[Command]): Unit =
-        GenericHandler(correlationId,
-                       "SetPenState",
-                       data => context.log.info(s"SetPenState виконано успішно з даними: $data"))
-          .handle(response, context)
+        GenericHandler(
+          correlationId,
+          "SetPenState",
+          data => context.log.info(s"SetPenState виконано успішно з даними: $data")
+        ).handle(response, context)
     }
 
     /**
@@ -579,10 +593,11 @@ object EiBotBoardActor {
       */
     private[EiBotBoardActor] case class MoveHomeResponseHandler(correlationId: String) extends ResponseHandler {
       def handle(response: SerialActor.CommandResponse, context: ActorContext[Command]): Unit =
-        GenericHandler(correlationId,
-                       "MoveHome",
-                       data => context.log.info(s"MoveHome виконано успішно з даними: $data"))
-          .handle(response, context)
+        GenericHandler(
+          correlationId,
+          "MoveHome",
+          data => context.log.info(s"MoveHome виконано успішно з даними: $data")
+        ).handle(response, context)
     }
 
     /**
@@ -590,10 +605,11 @@ object EiBotBoardActor {
       */
     private[EiBotBoardActor] case class ConfigureModeResponseHandler(correlationId: String) extends ResponseHandler {
       def handle(response: SerialActor.CommandResponse, context: ActorContext[Command]): Unit =
-        GenericHandler(correlationId,
-                       "ConfigureMode",
-                       data => context.log.info(s"ConfigureMode виконано успішно з даними: $data"))
-          .handle(response, context)
+        GenericHandler(
+          correlationId,
+          "ConfigureMode",
+          data => context.log.info(s"ConfigureMode виконано успішно з даними: $data")
+        ).handle(response, context)
     }
 
     private val pendingHandlers = mutable.Map.empty[String, ResponseHandler]
@@ -605,15 +621,15 @@ object EiBotBoardActor {
       * @param context Контекст актора для створення адаптера
       * @return Адаптер для перетворення відповіді від послідовного порту у команду актора
       */
-    def createAdapter(handler: ResponseHandler)(
-        implicit context: ActorContext[Command]): ActorRef[SerialActor.CommandResponse] = {
+    def createAdapter(
+      handler: ResponseHandler
+    )(implicit context: ActorContext[Command]): ActorRef[SerialActor.CommandResponse] = {
       val id = handler.correlationId
       pendingHandlers += (id -> handler)
       context.messageAdapter { response: SerialActor.CommandResponse =>
         new AdapterCommand(handler, response) {
-          override def process(ctx: ActorContext[Command]): Unit = {
+          override def process(ctx: ActorContext[Command]): Unit =
             pendingHandlers.remove(response.correlationId).foreach(_.handle(response, context))
-          }
         }
       }
     }

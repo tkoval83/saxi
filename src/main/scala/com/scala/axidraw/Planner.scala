@@ -40,8 +40,8 @@ case class Block(a: Double, t: Double, vi: Double, p1: Point, p2: Point) {
     */
   def instant(tLocal: Double, dt: Double = 0, ds: Double = 0): Instant = {
     val tClamped = max(0.0, min(t, tLocal))
-    val vLocal   = vi + a * tClamped
-    val sLocal   = vi * tClamped + a * tClamped * tClamped / 2
+    val vLocal = vi + a * tClamped
+    val sLocal = vi * tClamped + a * tClamped * tClamped / 2
     val sClamped = max(0.0, min(s, sLocal))
     Instant(
       t = tClamped + dt,
@@ -92,16 +92,17 @@ case class Plan(blocks: Vector[Block]) {
     */
   def atTime(t: Double): Instant = {
     val tClamped = max(0.0, min(totalTime, t))
-    val i        = ts.indexWhere(_ > tClamped)
-    val idx      = if (i <= 0) 0 else i - 1
-    val block    = blocks(idx)
+    val i = ts.indexWhere(_ > tClamped)
+    val idx = if (i <= 0) 0 else i - 1
+    val block = blocks(idx)
     block.instant(tClamped - ts(idx), ts(idx), ss(idx))
   }
 
   override def toString: String = {
     val sb = new StringBuilder
     sb.append(
-      f"План:\n  Загальний час: $totalTime%.2f секунд\n  Загальна відстань: $totalDistance%.2f мм\n  Кількість блоків: ${blocks.length}\n")
+      f"План:\n  Загальний час: $totalTime%.2f секунд\n  Загальна відстань: $totalDistance%.2f мм\n  Кількість блоків: ${blocks.length}\n"
+    )
     blocks.foreach { block =>
       sb.append(block.toString + "\n")
     }
@@ -122,14 +123,14 @@ case class Plan(blocks: Vector[Block]) {
   * @param p3   Кінцева точка руху.
   */
 case class Triangle(
-    s1: Double,
-    s2: Double,
-    t1: Double,
-    t2: Double,
-    vmax: Double,
-    p1: Point,
-    p2: Point,
-    p3: Point
+  s1: Double,
+  s2: Double,
+  t1: Double,
+  t2: Double,
+  vmax: Double,
+  p1: Point,
+  p2: Point,
+  p3: Point
 )
 
 /**
@@ -147,16 +148,16 @@ case class Triangle(
   * @param p4 Кінцева точка.
   */
 case class Trapezoid(
-    s1: Double,
-    s2: Double,
-    s3: Double,
-    t1: Double,
-    t2: Double,
-    t3: Double,
-    p1: Point,
-    p2: Point,
-    p3: Point,
-    p4: Point
+  s1: Double,
+  s2: Double,
+  s3: Double,
+  t1: Double,
+  t2: Double,
+  t3: Double,
+  p1: Point,
+  p2: Point,
+  p3: Point,
+  p4: Point
 )
 
 /**
@@ -182,14 +183,13 @@ case class Segment(p1: Point, p2: Point) {
   /** Список блоків руху, що формують цей сегмент. */
   var blocks: Vector[Block] = Vector.empty
 
-  override def toString: String = {
+  override def toString: String =
     s"""Сегмент:
   Початкова точка: $p1
   Кінцева точка: $p2
   Довжина: $length
   Вхідна швидкість: $entryVelocity
   Максимальна вхідна швидкість: $maxEntryVelocity"""
-  }
 }
 
 /**
@@ -246,17 +246,17 @@ case class Throttler(points: ArraySeq[Point], vmax: Double, dt: Double, threshol
     * @return   true, якщо рух допустимий, інакше false.
     */
   def isFeasible(i0: Int, v: Double): Boolean = {
-    val d  = v * dt
+    val d = v * dt
     val x0 = distances(i0)
     val x1 = x0 + d
     val i1 = findIndex(x1)
     if (i0 == i1) return true
 
-    val p0  = points(i0)
+    val p0 = points(i0)
     val p10 = points(i1)
     val p11 = points.lift(i1 + 1).getOrElse(p10)
-    val s   = x1 - distances(i1)
-    val p1  = p10.lerp(p11, s)
+    val s = x1 - distances(i1)
+    val p1 = p10.lerp(p11, s)
 
     (i0 + 1 to i1).forall { i =>
       points(i).segmentDistance(p0, p1) <= threshold
@@ -273,14 +273,13 @@ case class Throttler(points: ArraySeq[Point], vmax: Double, dt: Double, threshol
     if (isFeasible(index, vmax)) return vmax
 
     @tailrec
-    def binarySearch(low: Double, high: Double, iterations: Int): Double = {
+    def binarySearch(low: Double, high: Double, iterations: Int): Double =
       if (iterations <= 0) (low + high) / 2
       else {
         val mid = (low + high) / 2
         if (isFeasible(index, mid)) binarySearch(mid, high, iterations - 1)
         else binarySearch(low, mid, iterations - 1)
       }
-    }
     binarySearch(0, vmax, 16)
   }
 
@@ -313,10 +312,10 @@ object Planner {
     * @return План руху (Plan) для заданого шляху.
     */
   def plan(
-      points: Seq[Point],
-      acceleration: Double,
-      maxVelocity: Double,
-      cornerFactor: Double
+    points: Seq[Point],
+    acceleration: Double,
+    maxVelocity: Double,
+    cornerFactor: Double
   ): Plan = constantAccelerationPlan(points, acceleration, maxVelocity, cornerFactor)
 
   /**
@@ -329,10 +328,10 @@ object Planner {
     * @return План руху (Plan) для заданого шляху.
     */
   def plan(
-      path: Path,
-      acceleration: Double,
-      maxVelocity: Double,
-      cornerFactor: Double
+    path: Path,
+    acceleration: Double,
+    maxVelocity: Double,
+    cornerFactor: Double
   ): Plan = plan(path.points, acceleration, maxVelocity, cornerFactor)
 
   /**
@@ -348,10 +347,10 @@ object Planner {
     * @return Послідовність планів руху (Seq[Plan]) для кожного шляху.
     */
   def plans(
-      drawing: Drawing,
-      acceleration: Double,
-      maxVelocity: Double,
-      cornerFactor: Double
+    drawing: Drawing,
+    acceleration: Double,
+    maxVelocity: Double,
+    cornerFactor: Double
   ): Seq[Plan] =
     drawing.paths.map(path => plan(path.points, acceleration, maxVelocity, cornerFactor))
 
@@ -366,11 +365,11 @@ object Planner {
     * @return       Максимальна швидкість, яку можна досягти на повороті.
     */
   private def cornerVelocity(
-      s1: Segment,
-      s2: Segment,
-      vmax: Double,
-      a: Double,
-      factor: Double
+    s1: Segment,
+    s2: Segment,
+    vmax: Double,
+    a: Double,
+    factor: Double
   ): Double = {
     val cosine = -s1.direction.dot(s2.direction)
     if ((cosine - 1.0).abs < EPS) return 0.0
@@ -394,10 +393,10 @@ object Planner {
     * @return             План руху (Plan), що складається з блоків.
     */
   private def constantAccelerationPlan(
-      points: Seq[Point],
-      acceleration: Double,
-      maxVelocity: Double,
-      cornerFactor: Double
+    points: Seq[Point],
+    acceleration: Double,
+    maxVelocity: Double,
+    cornerFactor: Double
   ): Plan = {
     val throttler = Throttler(
       ArraySeq(points: _*),
@@ -430,10 +429,10 @@ object Planner {
       if (index >= segments.size - 1) return
 
       val current = segments(index)
-      val next    = segments(index + 1)
-      val s       = current.length
-      val vi      = current.entryVelocity
-      val vexit   = next.maxEntryVelocity
+      val next = segments(index + 1)
+      val s = current.length
+      val vi = current.entryVelocity
+      val vexit = next.maxEntryVelocity
 
       val triangleParams = computeTriangle(s, vi, vexit, acceleration, current.p1, current.p2)
       if (triangleParams.s1 < -EPS) {
@@ -485,19 +484,19 @@ object Planner {
     * @return   Обчислений трикутний профіль (Triangle).
     */
   private def computeTriangle(
-      s: Double,
-      vi: Double,
-      vf: Double,
-      a: Double,
-      p1: Point,
-      p3: Point
+    s: Double,
+    vi: Double,
+    vf: Double,
+    a: Double,
+    p1: Point,
+    p3: Point
   ): Triangle = {
-    val s1   = (2 * a * s + vf * vf - vi * vi) / (4 * a)
-    val s2   = s - s1
+    val s1 = (2 * a * s + vf * vf - vi * vi) / (4 * a)
+    val s2 = s - s1
     val vmax = sqrt(vi * vi + 2 * a * s1)
-    val t1   = (vmax - vi) / a
-    val t2   = (vf - vmax) / -a
-    val p2   = p1.lerp(p3, s1)
+    val t1 = (vmax - vi) / a
+    val t2 = (vf - vmax) / -a
+    val p2 = p1.lerp(p3, s1)
 
     Triangle(
       s1,
@@ -522,13 +521,13 @@ object Planner {
     * @return     Обчислений трапецієподібний профіль (Trapezoid).
     */
   private def computeTrapezoid(
-      s: Double,
-      vi: Double,
-      vmax: Double,
-      vf: Double,
-      a: Double,
-      p1: Point,
-      p4: Point
+    s: Double,
+    vi: Double,
+    vmax: Double,
+    vf: Double,
+    a: Double,
+    p1: Point,
+    p4: Point
   ): Trapezoid = {
     val t1 = (vmax - vi) / a
     val s1 = (vmax + vi) / 2 * t1

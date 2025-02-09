@@ -36,15 +36,15 @@ object AxiDrawModel {
   * @param reproducibilityXYMm            Точність позиціювання (міліметри)
   */
 sealed abstract class AxiDrawModel(
-    val name: String,
-    val usablePenTravelInches: (Double, Double),
-    val usablePenTravelMm: (Double, Double),
-    val verticalPenTravelInches: Double,
-    val verticalPenTravelMm: Double,
-    val maxXYTravelSpeedInches: Double,
-    val maxXYTravelSpeedCm: Double,
-    val nativeXYResolutionStepsPerInch: Int,
-    val nativeXYResolutionStepsPerMm: Int,
-    val reproducibilityXYInches: Double,
-    val reproducibilityXYMm: Double
+  val name: String,
+  val usablePenTravelInches: (Double, Double),
+  val usablePenTravelMm: (Double, Double),
+  val verticalPenTravelInches: Double,
+  val verticalPenTravelMm: Double,
+  val maxXYTravelSpeedInches: Double,
+  val maxXYTravelSpeedCm: Double,
+  val nativeXYResolutionStepsPerInch: Int,
+  val nativeXYResolutionStepsPerMm: Int,
+  val reproducibilityXYInches: Double,
+  val reproducibilityXYMm: Double
 )

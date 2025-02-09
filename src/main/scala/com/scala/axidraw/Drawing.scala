@@ -30,14 +30,13 @@ object GeometryUtils {
     */
   def bisect(arr: ArraySeq[Double], x: Double): Int = {
     @tailrec
-    def loop(low: Int, high: Int): Int = {
+    def loop(low: Int, high: Int): Int =
       if (low > high) low
       else {
         val mid = (low + high) / 2
         if (arr(mid) < x) loop(mid + 1, high)
         else loop(low, mid - 1)
       }
-    }
     loop(0, arr.length - 1)
   }
 }
@@ -104,9 +103,9 @@ case class Point(x: Double, y: Double) {
   def segmentDistance(v: Point, w: Point): Double = {
     val l2 = v.distanceSquared(w)
     if (l2 < EPS) return this.distance(v)
-    val t        = ((x - v.x) * (w.x - v.x) + (y - v.y) * (w.y - v.y)) / l2
+    val t = ((x - v.x) * (w.x - v.x) + (y - v.y) * (w.y - v.y)) / l2
     val tClamped = max(0.0, min(1.0, t))
-    val proj     = Point(v.x + tClamped * (w.x - v.x), v.y + tClamped * (w.y - v.y))
+    val proj = Point(v.x + tClamped * (w.x - v.x), v.y + tClamped * (w.y - v.y))
     distance(proj)
   }
 
@@ -141,10 +140,10 @@ case class Path(points: Seq[com.scala.axidraw.Point]) {
     if (points.length < 2)
       return this
 
-    val gf                        = new GeometryFactory()
+    val gf = new GeometryFactory()
     val coords: Array[Coordinate] = points.map(p => new Coordinate(p.x, p.y)).toArray
-    val line: LineString          = gf.createLineString(coords)
-    val simplifiedGeom            = DouglasPeuckerSimplifier.simplify(line, tolerance)
+    val line: LineString = gf.createLineString(coords)
+    val simplifiedGeom = DouglasPeuckerSimplifier.simplify(line, tolerance)
     val simplifiedPoints: Seq[com.scala.axidraw.Point] =
       simplifiedGeom.getCoordinates.map(c => com.scala.axidraw.Point(c.x, c.y)).toSeq
     Path(simplifiedPoints)
@@ -285,8 +284,8 @@ case class Drawing(paths: Seq[Path]) {
     */
   def move(x: Double, y: Double, ax: Double, ay: Double): Drawing = {
     val (x1, y1, x2, y2) = bounds
-    val dx               = x1 + (x2 - x1) * ax - x
-    val dy               = y1 + (y2 - y1) * ay - y
+    val dx = x1 + (x2 - x1) * ax - x
+    val dy = y1 + (y2 - y1) * ay - y
     translate(-dx, -dy)
   }
 
@@ -311,9 +310,9 @@ case class Drawing(paths: Seq[Path]) {
     * @return Нове креслення, масштабоване та центроване відповідно до вказаних габаритів
     */
   def scaleToFit(width: Double, height: Double, padding: Double = 0): Drawing = {
-    val availableWidth  = width - padding * 2
+    val availableWidth = width - padding * 2
     val availableHeight = height - padding * 2
-    val scaleFactor     = math.min(availableWidth / width, availableHeight / height)
+    val scaleFactor = math.min(availableWidth / width, availableHeight / height)
     scale(scaleFactor).center(availableWidth, availableHeight)
   }
 
@@ -330,10 +329,10 @@ case class Drawing(paths: Seq[Path]) {
     * @param step Крок обертання (у градусах), за замовчуванням 5
     * @return Опціональне креслення, що відповідає умовам
     */
-  def rotateToFit(width: Double, height: Double, step: Int = 5): Option[Drawing] = {
+  def rotateToFit(width: Double, height: Double, step: Int = 5): Option[Drawing] =
     (0 until 180 by step).iterator
       .map { angle =>
-        val rad     = angle * math.Pi / 180.0
+        val rad = angle * math.Pi / 180.0
         val rotated = rotate(rad)
         if (rotated.width <= width && rotated.height <= height)
           Some(rotated.center(width, height))
@@ -342,7 +341,6 @@ case class Drawing(paths: Seq[Path]) {
       }
       .find(_.isDefined)
       .flatten
-  }
 
   /**
     * Видаляє всі шляхи, що містять хоча б одну точку поза межами заданої області.
@@ -371,25 +369,27 @@ case class Drawing(paths: Seq[Path]) {
     * @param showBounds Прапорець, чи малювати межі (bounding box) креслення
     * @return BufferedImage із зображенням креслення
     */
-  def render(scale: Double = 109,
-             margin: Double = 1,
-             lineWidth: Double = 0.35 / 25.4,
-             boundsOpt: Option[(Double, Double, Double, Double)] = None,
-             showBounds: Boolean = true): BufferedImage = {
+  def render(
+    scale: Double = 109,
+    margin: Double = 1,
+    lineWidth: Double = 0.35 / 25.4,
+    boundsOpt: Option[(Double, Double, Double, Double)] = None,
+    showBounds: Boolean = true
+  ): BufferedImage = {
 
     // Визначення меж: якщо boundsOpt не задано, використовуємо метод bounds креслення
     val (x1, y1, x2, y2) = boundsOpt.getOrElse(bounds)
-    val w                = x2 - x1
-    val h                = y2 - y1
+    val w = x2 - x1
+    val h = y2 - y1
 
     // Розрахунок розмірів зображення (margin множиться на scale)
-    val m           = margin * scale
-    val imageWidth  = (scale * w + 2 * m).toInt
+    val m = margin * scale
+    val imageWidth = (scale * w + 2 * m).toInt
     val imageHeight = (scale * h + 2 * m).toInt
 
     // Створення зображення
     val image = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_RGB)
-    val g2    = image.createGraphics()
+    val g2 = image.createGraphics()
     try {
       // Налаштування рендерингу (антіаліасінг)
       g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
@@ -421,7 +421,7 @@ case class Drawing(paths: Seq[Path]) {
       for (path <- paths) {
         if (path.points.nonEmpty) {
           val path2d = new Path2D.Double()
-          val first  = path.points.head
+          val first = path.points.head
           path2d.moveTo(first.x, first.y)
           for (p <- path.points.tail) {
             path2d.lineTo(p.x, p.y)

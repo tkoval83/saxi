@@ -16,9 +16,9 @@ import scala.util.{Failure, Success}
 object AxiDrawActor {
 
   // Константи для сервоприводу
-  private final val ServoMin: Int     = 7500
-  private final val ServoMax: Int     = 28000
-  private final val SpeedScaling: Int = 5
+  final private val ServoMin: Int = 7500
+  final private val ServoMax: Int = 28000
+  final private val SpeedScaling: Int = 5
 
   /**
     * Повідомлення, які підтримує AxiDrawActor.
@@ -38,7 +38,7 @@ object AxiDrawActor {
   /**
     * Внутрішнє повідомлення про невдале виконання креслення (з помилкою).
     */
-  private final case class DrawingFailed(ex: Throwable) extends Command
+  final private case class DrawingFailed(ex: Throwable) extends Command
 
   /**
     * Фабричний метод для створення поведінки актора
@@ -65,8 +65,8 @@ object AxiDrawActor {
     * Обробка помилок валідації
     */
   private def handleErrors(
-      errors: NonEmptyList[AxiDrawOptions.ValidationError],
-      context: ActorContext[Command]
+    errors: NonEmptyList[AxiDrawOptions.ValidationError],
+    context: ActorContext[Command]
   ): Unit =
     errors.toList.foreach {
       case AxiDrawOptions.InvalidPosition =>
@@ -81,14 +81,14 @@ object AxiDrawActor {
     * Ініціалізація пристрою
     */
   private def initializeDevice(
-      options: AxiDrawOptions,
-      context: ActorContext[Command]
+    options: AxiDrawOptions,
+    context: ActorContext[Command]
   ): Behavior[Command] = {
     context.log.info(s"Ініціалізація пристрою ${options.model}")
 
     // Створюємо актор для послідовного порту та актор EiBotBoard
     val serialActor = context.spawn(SerialActor(), "serial-actor")
-    val ebotActor   = context.spawn(EiBotBoardActor(serialActor), "ebb-actor")
+    val ebotActor = context.spawn(EiBotBoardActor(serialActor), "ebb-actor")
 
     // Конфігуруємо налаштування сервоприводів пера
     val (upPos, downPos, upSpeed, downSpeed) = calculateServoSettings(options)
@@ -102,8 +102,8 @@ object AxiDrawActor {
     * Стан `idle`: актор готовий приймати команду Draw, аби почати креслення.
     */
   private def idle(
-      options: AxiDrawOptions,
-      ebotActor: ActorRef[EiBotBoardActor.Command],
+    options: AxiDrawOptions,
+    ebotActor: ActorRef[EiBotBoardActor.Command],
   ): Behavior[Command] =
     Behaviors.setup { context =>
       Behaviors
@@ -139,8 +139,8 @@ object AxiDrawActor {
     * аж поки процес не завершиться чи не зазнає помилки.
     */
   private def busy(
-      options: AxiDrawOptions,
-      ebotActor: ActorRef[EiBotBoardActor.Command]
+    options: AxiDrawOptions,
+    ebotActor: ActorRef[EiBotBoardActor.Command]
   ): Behavior[Command] =
     Behaviors.setup { context =>
       Behaviors
@@ -182,12 +182,12 @@ object AxiDrawActor {
     * @param ec         ExecutionContext для роботи з Future.
     */
   private def runPaths(
-      paths: Seq[Path],
-      options: AxiDrawOptions,
-      ebotActor: ActorRef[EiBotBoardActor.Command],
-      context: ActorContext[Command]
+    paths: Seq[Path],
+    options: AxiDrawOptions,
+    ebotActor: ActorRef[EiBotBoardActor.Command],
+    context: ActorContext[Command]
   )(implicit ec: ExecutionContext): Unit = {
-    val gapThreshold                = EPS
+    val gapThreshold = EPS
     var previousLast: Option[Point] = None
 
     paths.foreach { path =>
@@ -220,10 +220,10 @@ object AxiDrawActor {
     * @param context    Контекст актора.
     */
   private def runPath(
-      path: com.scala.axidraw.Path,
-      options: AxiDrawOptions,
-      ebotActor: ActorRef[EiBotBoardActor.Command],
-      context: ActorContext[Command]
+    path: com.scala.axidraw.Path,
+    options: AxiDrawOptions,
+    ebotActor: ActorRef[EiBotBoardActor.Command],
+    context: ActorContext[Command]
   ): Unit = {
     val plan = Planner.plan(path, options.acceleration, options.maxVelocity, options.cornerFactor)
     runPlan(plan, options, ebotActor, context)
@@ -242,16 +242,16 @@ object AxiDrawActor {
     * @param context Контекст актора
     */
   private def runPlan(
-      plan: Plan,
-      options: AxiDrawOptions,
-      ebotActor: ActorRef[EiBotBoardActor.Command],
-      context: ActorContext[Command]
+    plan: Plan,
+    options: AxiDrawOptions,
+    ebotActor: ActorRef[EiBotBoardActor.Command],
+    context: ActorContext[Command]
   ): Unit = {
     // Часовий крок у секундах (timesliceMs задано в мілісекундах)
-    val dtSeconds       = options.timesliceMs / 1000.0
-    val totalTime       = plan.totalTime
+    val dtSeconds = options.timesliceMs / 1000.0
+    val totalTime = plan.totalTime
     var previousInstant = plan.atTime(0.0)
-    var t               = dtSeconds
+    var t = dtSeconds
 
     // Накопичення дробових частин округлення для осей X та Y
     var errorX = 0.0
@@ -300,9 +300,9 @@ object AxiDrawActor {
     * @param options   Конфігураційні параметри AxiDraw
     */
   private def penUp(ebotActor: ActorRef[EiBotBoardActor.Command], options: AxiDrawOptions): Unit = {
-    val delta    = math.abs(options.penUpPosition - options.penDownPosition)
+    val delta = math.abs(options.penUpPosition - options.penDownPosition)
     val duration = 1000 * delta / options.penUpSpeed
-    val delay    = math.max(0, duration + options.penUpDelay)
+    val delay = math.max(0, duration + options.penUpDelay)
     ebotActor ! EiBotBoardActor.SetPenState(1, Some(delay))
   }
 
@@ -316,9 +316,9 @@ object AxiDrawActor {
     * @param options   Конфігураційні параметри AxiDraw
     */
   private def penDown(ebotActor: ActorRef[EiBotBoardActor.Command], options: AxiDrawOptions): Unit = {
-    val delta    = math.abs(options.penUpPosition - options.penDownPosition)
+    val delta = math.abs(options.penUpPosition - options.penDownPosition)
     val duration = 1000 * delta / options.penDownSpeed
-    val delay    = math.max(0, duration + options.penDownDelay)
+    val delay = math.max(0, duration + options.penDownDelay)
     ebotActor ! EiBotBoardActor.SetPenState(0, Some(delay))
   }
 
@@ -335,11 +335,11 @@ object AxiDrawActor {
 
   /** Відправка команд налаштування */
   private def sendConfigurationCommands(
-      ebotActor: ActorRef[EiBotBoardActor.Command],
-      upPos: Int,
-      downPos: Int,
-      upSpeed: Int,
-      downSpeed: Int
+    ebotActor: ActorRef[EiBotBoardActor.Command],
+    upPos: Int,
+    downPos: Int,
+    upSpeed: Int,
+    downSpeed: Int
   ): Unit = {
     val commands = List(
       EiBotBoardActor.ConfigureMode(4, upPos),
@@ -356,8 +356,8 @@ object AxiDrawActor {
     * Завершує роботу пристрою, опускає перо та вимикає мотори.
     */
   private def shutdownDevice(
-      ebotActor: ActorRef[EiBotBoardActor.Command],
-      context: ActorContext[_]
+    ebotActor: ActorRef[EiBotBoardActor.Command],
+    context: ActorContext[_]
   ): Unit = {
     context.log.info("Завершення роботи пристрою AxiDraw")
     val commands = List(
