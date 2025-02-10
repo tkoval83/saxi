@@ -28,7 +28,7 @@ object AxiDrawActor {
   /**
     * Команда для запуску малювання (складається з одного або кількох шляхів).
     */
-  final case class Draw(drawing: Drawing) extends Command
+  final case class Draw(drawing: Paths) extends Command
 
   /**
     * Внутрішнє повідомлення про успішне завершення креслення.

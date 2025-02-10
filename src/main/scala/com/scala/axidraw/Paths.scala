@@ -158,7 +158,7 @@ case class Path(points: Seq[com.scala.axidraw.Point]) {
   *
   * @param paths Колекція шляхів малювання (Path)
   */
-case class Drawing(paths: Seq[Path]) {
+case class Paths(paths: Seq[Path]) {
 
   /**
     * Повертає всі точки креслення як послідовність об'єктів Point.
@@ -173,8 +173,8 @@ case class Drawing(paths: Seq[Path]) {
     * @param tolerance Допустиме відхилення для спрощення (мм)
     * @return Нове креслення з спрощеними шляхами
     */
-  def simplify(tolerance: Double): Drawing =
-    Drawing(paths.map(_.simplify(tolerance)))
+  def simplify(tolerance: Double): Paths =
+    Paths(paths.map(_.simplify(tolerance)))
 
   /**
     * Трансформує креслення за допомогою заданої функції перетворення для кожної точки.
@@ -182,11 +182,11 @@ case class Drawing(paths: Seq[Path]) {
     * @param f Функція, що приймає точку і повертає нову точку (наприклад, для обертання, перенесення чи іншого аффінного перетворення)
     * @return Нове креслення з трансформованими точками
     */
-  def transform(f: com.scala.axidraw.Point => com.scala.axidraw.Point): Drawing = {
+  def transform(f: com.scala.axidraw.Point => com.scala.axidraw.Point): Paths = {
     val transformedPaths = paths.map { path =>
       path.copy(points = path.points.map(f))
     }
-    Drawing(transformedPaths)
+    Paths(transformedPaths)
   }
 
   /**
@@ -196,7 +196,7 @@ case class Drawing(paths: Seq[Path]) {
     * @param dy Зміщення по осі Y (мм)
     * @return Нове креслення з перенесеними точками
     */
-  def translate(dx: Double, dy: Double): Drawing =
+  def translate(dx: Double, dy: Double): Paths =
     transform(p => com.scala.axidraw.Point(p.x + dx, p.y + dy))
 
   /**
@@ -205,7 +205,7 @@ case class Drawing(paths: Seq[Path]) {
     * @param factor Коефіцієнт масштабування (наприклад, 0.5 для зменшення, 2.0 для збільшення)
     * @return Нове креслення з масштабованими точками
     */
-  def scale(factor: Double): Drawing =
+  def scale(factor: Double): Paths =
     transform(p => com.scala.axidraw.Point(p.x * factor, p.y * factor))
 
   /**
@@ -214,7 +214,7 @@ case class Drawing(paths: Seq[Path]) {
     * @param angle Кут обертання в радіанах
     * @return Нове креслення з оберненими точками
     */
-  def rotate(angle: Double): Drawing = {
+  def rotate(angle: Double): Paths = {
     val cosA = math.cos(angle)
     val sinA = math.sin(angle)
     transform(p => com.scala.axidraw.Point(p.x * cosA - p.y * sinA, p.x * sinA + p.y * cosA))
@@ -282,7 +282,7 @@ case class Drawing(paths: Seq[Path]) {
     * @param ay Відносна координата Y меж креслення (від 0 до 1)
     * @return Нове креслення з переміщеними точками
     */
-  def move(x: Double, y: Double, ax: Double, ay: Double): Drawing = {
+  def move(x: Double, y: Double, ax: Double, ay: Double): Paths = {
     val (x1, y1, x2, y2) = bounds
     val dx = x1 + (x2 - x1) * ax - x
     val dy = y1 + (y2 - y1) * ay - y
@@ -298,7 +298,7 @@ case class Drawing(paths: Seq[Path]) {
     * @param height Загальна висота області (мм)
     * @return Нове креслення з центруванням
     */
-  def center(width: Double, height: Double): Drawing =
+  def center(width: Double, height: Double): Paths =
     move(width / 2.0, height / 2.0, 0.5, 0.5)
 
   /**
@@ -309,7 +309,7 @@ case class Drawing(paths: Seq[Path]) {
     * @param padding Відступ від країв (мм), за замовчуванням 0
     * @return Нове креслення, масштабоване та центроване відповідно до вказаних габаритів
     */
-  def scaleToFit(width: Double, height: Double, padding: Double = 0): Drawing = {
+  def scaleToFit(width: Double, height: Double, padding: Double = 0): Paths = {
     val availableWidth = width - padding * 2
     val availableHeight = height - padding * 2
     val scaleFactor = math.min(availableWidth / width, availableHeight / height)
@@ -329,7 +329,7 @@ case class Drawing(paths: Seq[Path]) {
     * @param step Крок обертання (у градусах), за замовчуванням 5
     * @return Опціональне креслення, що відповідає умовам
     */
-  def rotateToFit(width: Double, height: Double, step: Int = 5): Option[Drawing] =
+  def rotateToFit(width: Double, height: Double, step: Int = 5): Option[Paths] =
     (0 until 180 by step).iterator
       .map { angle =>
         val rad = angle * math.Pi / 180.0
@@ -349,14 +349,14 @@ case class Drawing(paths: Seq[Path]) {
     * @param height Висота області (мм)
     * @return Нове креслення, яке містить лише ті шляхи, що повністю знаходяться в межах області
     */
-  def removePathsOutside(width: Double, height: Double): Drawing = {
+  def removePathsOutside(width: Double, height: Double): Paths = {
     val e = 1e-8
     val validPaths = paths.filter { path =>
       path.points.forall { p =>
         p.x >= -e && p.y >= -e && p.x <= width + e && p.y <= height + e
       }
     }
-    Drawing(validPaths)
+    Paths(validPaths)
   }
 
   /**
@@ -438,4 +438,4 @@ case class Drawing(paths: Seq[Path]) {
 /**
   * Допоміжний об'єкт для роботи з кресленнями.
   */
-object Drawing {}
+object Paths {}

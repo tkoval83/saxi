@@ -76,7 +76,7 @@ object Application {
             com.scala.axidraw.Point(10, 10)
           )
         )
-        val sampleDrawing = com.scala.axidraw.Drawing(Seq(samplePath))
+        val sampleDrawing = com.scala.axidraw.Paths(Seq(samplePath))
         system ! AxiDrawActor.Draw(sampleDrawing)
 
         sys.addShutdownHook {

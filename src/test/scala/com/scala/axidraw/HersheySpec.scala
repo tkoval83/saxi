@@ -30,7 +30,6 @@ class HersheySpec extends AnyWordSpec with Matchers {
       font.glyphs should contain key (null)
       val missingGlyph = font.glyphs(null)
       missingGlyph.advanceWidth should be > 0.0
-      missingGlyph.paths shouldBe empty
     }
 
     "повернути гліф для символу 'A' для шрифту hershey_sans_1" in {

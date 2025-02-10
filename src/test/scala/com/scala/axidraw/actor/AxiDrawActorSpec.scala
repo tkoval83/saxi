@@ -25,7 +25,7 @@ class AxiDrawActorSpec extends AnyWordSpecLike with BeforeAndAfterAll {
           Point(0, 0)
         )
       )
-      val squareDrawing = Drawing(Seq(squarePath))
+      val squareDrawing = Paths(Seq(squarePath))
       val config = ConfigFactory.empty()
 
       val axiDrawActor = testKit.spawn(AxiDrawActor(Some(config)), "axiDrawActorSquare")

@@ -347,10 +347,10 @@ object Planner {
     * @return Послідовність планів руху (Seq[Plan]) для кожного шляху.
     */
   def plans(
-    drawing: Drawing,
-    acceleration: Double,
-    maxVelocity: Double,
-    cornerFactor: Double
+             drawing: Paths,
+             acceleration: Double,
+             maxVelocity: Double,
+             cornerFactor: Double
   ): Seq[Plan] =
     drawing.paths.map(path => plan(path.points, acceleration, maxVelocity, cornerFactor))
 
