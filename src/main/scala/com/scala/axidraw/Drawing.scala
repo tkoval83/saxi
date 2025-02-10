@@ -376,39 +376,39 @@ case class Drawing(paths: Seq[Path]) {
     boundsOpt: Option[(Double, Double, Double, Double)] = None,
     showBounds: Boolean = true
   ): BufferedImage = {
-
     // Визначення меж: якщо boundsOpt не задано, використовуємо метод bounds креслення
     val (x1, y1, x2, y2) = boundsOpt.getOrElse(bounds)
     val w = x2 - x1
     val h = y2 - y1
 
-    // Розрахунок розмірів зображення (margin множиться на scale)
+    // Обчислення відступу (margin) та розмірів зображення (margin враховано)
     val m = margin * scale
     val imageWidth = (scale * w + 2 * m).toInt
     val imageHeight = (scale * h + 2 * m).toInt
 
-    // Створення зображення
+    // Створення BufferedImage
     val image = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_RGB)
     val g2 = image.createGraphics()
     try {
-      // Налаштування рендерингу (антіаліасінг)
+      // Включення антиаліасингу
       g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
 
+      // *** FIX: Скидаємо трансформацію до одиничної та заповнюємо весь фон білим кольором.
+      g2.setTransform(new AffineTransform()) // скидання до одиничної матриці
+      g2.setColor(Color.WHITE)
+      g2.fillRect(0, 0, imageWidth, imageHeight)
+
       // Побудова аффінного перетворення:
-      // 1. Перенос на margin
-      // 2. Масштабування
-      // 3. Перенос (-x1, -y1), щоб межі креслення збігалися з початком координат
+      // 1. Перенос на відступ margin (m)
+      // 2. Масштабування на scale
+      // 3. Перенос (-x1, -y1), щоб креслення розпочиналося з (x1, y1)
       val at = new AffineTransform()
       at.translate(m, m)
       at.scale(scale, scale)
       at.translate(-x1, -y1)
       g2.setTransform(at)
 
-      // Заповнення фону білим кольором
-      g2.setColor(Color.WHITE)
-      g2.fill(new Rectangle2D.Double(x1, y1, w, h))
-
-      // За бажанням, малюємо межі (bounding box) сірим кольором з товщиною 1/scale
+      // За бажанням, малюємо межі (bounding box) креслення сірим кольором
       if (showBounds) {
         g2.setColor(Color.GRAY)
         g2.setStroke(new BasicStroke((1.0 / scale).toFloat))
@@ -418,16 +418,14 @@ case class Drawing(paths: Seq[Path]) {
       // Малювання шляхів креслення чорним кольором
       g2.setColor(Color.BLACK)
       g2.setStroke(new BasicStroke(lineWidth.toFloat, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND))
-      for (path <- paths) {
-        if (path.points.nonEmpty) {
-          val path2d = new Path2D.Double()
-          val first = path.points.head
-          path2d.moveTo(first.x, first.y)
-          for (p <- path.points.tail) {
-            path2d.lineTo(p.x, p.y)
-          }
-          g2.draw(path2d)
+      for (path <- paths if path.points.nonEmpty) {
+        val path2d = new Path2D.Double()
+        val first = path.points.head
+        path2d.moveTo(first.x, first.y)
+        path.points.tail.foreach { p =>
+          path2d.lineTo(p.x, p.y)
         }
+        g2.draw(path2d)
       }
     } finally {
       g2.dispose()
