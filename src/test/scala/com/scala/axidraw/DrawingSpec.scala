@@ -51,30 +51,48 @@ class DrawingSpec extends AnyWordSpec with Matchers {
       centerColor.getGreen should be < 50
       centerColor.getBlue should be < 50
     }
-    "зберегти зображення у файл" in {
-      // Створюємо просте креслення: один шлях із двох точок (0,0) та (10,10)
-      val p1 = Point(0, 0)
-      val p2 = Point(10, 10)
-      val path = Path(Seq(p1, p2))
-      val drawing = Drawing(Seq(path))
+    "зберегти зображення гліфа A з HersheySans1 у файл" in {
+      // Ініціалізуємо систему шрифтів Hershey (зчитування index.json тощо)
+      Hershey.init()
 
-      // Рендеримо креслення у зображення (BufferedImage)
-      val image: BufferedImage = drawing.render()
+      // Отримуємо гліф для літери 'A' з шрифту "hershey_sans_1"
+      val glyphOpt = Hershey.getGlyph("hershey_sans_1", 'A')
+      glyphOpt should not be empty
 
-      // Створюємо тимчасовий файл для збереження зображення.
-      val tempFile: File = File.createTempFile("test_drawing", ".png")
-      tempFile.deleteOnExit() // Файл буде видалено при завершенні JVM
+      glyphOpt match {
+        case Some(glyph) =>
+          // Перевіряємо, що гліф містить дані контуру (paths)
+          glyph.paths.nonEmpty shouldBe true
 
-      // Зберігаємо зображення у файл у форматі PNG
-      val written: Boolean = ImageIO.write(image, "png", tempFile)
-      written shouldBe true
+          // Створюємо креслення з даних контуру гліфа
+          val drawing = Drawing(glyph.paths)
 
-      // Перевіряємо, що файл існує та його розмір більше нуля.
-      tempFile.exists() shouldBe true
-      tempFile.length() should be > 0L
+          // Опціонально: переміщаємо креслення так, щоб мінімальні координати стали (0,0)
+          val (minX, minY, _, _) = drawing.bounds
+          val translatedDrawing = drawing.translate(-minX, -minY)
 
-      // Виводимо шлях до файлу (для інформації)
-      println(s"Зображення збережено у файл: ${tempFile.getAbsolutePath}")
+          // Рендеримо креслення у зображення.
+          // Тут scale та margin можна налаштовувати (наприклад, scale = 2.0, margin = 10)
+          val image: BufferedImage = translatedDrawing.render(scale = 2.0, margin = 10)
+
+          // Створюємо тимчасовий файл для збереження зображення.
+          val tempFile: File = File.createTempFile("hersheyA", ".png")
+          tempFile.deleteOnExit() // Файл буде видалено при завершенні JVM
+
+          // Зберігаємо зображення у файл у форматі PNG
+          val written: Boolean = ImageIO.write(image, "png", tempFile)
+          written shouldBe true
+
+          // Перевіряємо, що файл існує та його розмір більше нуля.
+          tempFile.exists() shouldBe true
+          tempFile.length() should be > 0L
+
+          // Виводимо шлях до файлу (для інформації)
+          println(s"Гліф A з HersheySans1 збережено у файл: ${tempFile.getAbsolutePath}")
+
+        case None =>
+          fail("Гліф для A не знайдено у HersheySans1")
+      }
     }
   }
 }
