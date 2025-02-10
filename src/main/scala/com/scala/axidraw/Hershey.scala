@@ -1,61 +1,92 @@
 package com.scala.axidraw
 
-import io.circe._
+import com.scala.axidraw.Hershey.{Font, RenderingOptions, transformGlyph, updateCursor}
 import io.circe.generic.semiauto._
+import io.circe.{Decoder, parser}
 
 import java.io.FileNotFoundException
+import scala.annotation.tailrec
 import scala.io.Source
-import scala.xml.XML
+import scala.util.{Failure, Success, Try}
+import scala.xml.{Node, XML}
 
 /**
-  * Об’єкт для роботи з векторними шрифтами Hershey у форматі SVG.
-  * Надає функції для завантаження шрифтів, отримання гліфів та керування кешем.
+  * Клас Hershey являє собою публічну обгортку для завантаженого шрифту.
+  * Він дозволяє рендерити текст як векторні шляхи.
+  *
+  * @param font Внутрішнє представлення шрифту.
+  */
+class Hershey(val font: Font) {
+
+  /**
+    * Рендерить заданий текст у вигляді векторних шляхів.
+    *
+    * Метод послідовно обробляє кожний символ тексту, знаходить відповідний гліф у шрифті,
+    * застосовує до нього трансформації згідно з переданими параметрами та об'єднує результуючі шляхи.
+    *
+    * @param text    Текст, який необхідно відобразити.
+    * @param options Опції рендерингу, що включають масштаб, відступ між символами та початкову точку.
+    * @return Paths – векторні шляхи, що представляють рендерений текст.
+    */
+  def renderText(text: String, options: RenderingOptions = RenderingOptions()): Paths =
+    text
+      .foldLeft((Paths.empty, options.origin)) {
+        case ((acc, cursor), char) =>
+          // Спроба знайти гліф для символу; якщо гліф відсутній, використовується спеціальний "missing" гліф.
+          val glyphOpt = font.glyphs.get(char.toString).orElse(font.glyphs.get("missing"))
+          glyphOpt.fold((acc, cursor)) { glyph =>
+            val transformed = transformGlyph(glyph, cursor, options)
+            val newCursor = updateCursor(cursor, glyph, options)
+            (acc.combine(transformed), newCursor)
+          }
+      }
+      ._1
+}
+
+/**
+  * Об'єкт Hershey забезпечує функціональність для роботи з векторними шрифтами Hershey у форматі SVG.
+  * Він надає можливості для ініціалізації системи шрифтів, завантаження окремих шрифтів та рендерингу тексту
+  * у вигляді векторних шляхів.
   */
 object Hershey {
 
   /**
-    * Представляє шрифт.
+    * Модель шрифту, що містить векторні гліфи.
     *
-    * @param fontId   унікальний ідентифікатор шрифту (наприклад, "HersheySans1")
-    * @param fontFace об’єкт, що містить метрики та властивості шрифту.
-    * @param glyphs   карта гліфів, де ключ – ім’я гліфа, а значення – об’єкт [[Glyph]].
-    *                 Якщо шрифт не містить гліф для певного символу, його "missing" гліф
-    *                 зберігається в цій мапі під ключем null.
+    * @param fontId   Ідентифікатор шрифту.
+    * @param fontFace Метрики шрифту, що визначають його основні характеристики.
+    * @param glyphs   Відповідність між символами (ключ – Unicode символ або назва гліфа) та гліфами.
     */
-  final case class Font(
+  case class Font(
     fontId: String,
     fontFace: FontFace,
     glyphs: Map[String, Glyph]
   )
 
   /**
-    * Містить метрики шрифту та інші властивості.
+    * Метрики шрифту, що описують його основні параметри.
     *
-    * @param familyName назва сімейства шрифту (наприклад, "Hershey Sans 1-stroke")
-    * @param unitsPerEm кількість одиниць, що відповідають одному em (наприклад, 1000)
-    * @param ascent     значення підйому (наприклад, 800)
-    * @param descent    значення опускання (наприклад, -200)
-    * @param capHeight  висота великих літер (наприклад, 500)
-    * @param xHeight    висота малих літер (наприклад, 300)
+    * @param familyName Назва сімейства шрифтів.
+    * @param unitsPerEm Основна одиниця виміру розмірів шрифту.
+    * @param ascent     Висота підйому шрифту.
+    * @param descent    Глибина спуску шрифту.
     */
-  final case class FontFace(
+  case class FontFace(
     familyName: String,
     unitsPerEm: Int,
     ascent: Int,
-    descent: Int,
-    capHeight: Int,
-    xHeight: Int
+    descent: Int
   )
 
   /**
-    * Представляє окремий гліф (символ) у шрифті.
+    * Модель векторного гліфа.
     *
-    * @param name         ім’я гліфа.
-    * @param unicode      значення Unicode.
-    * @param advanceWidth горизонтальна ширина для символу.
-    * @param paths        дані контуру, що описують контур символу.
+    * @param name         Назва гліфа.
+    * @param unicode      Unicode символ, що відповідає гліфу (опціонально).
+    * @param advanceWidth Ширина символу, що використовується для розрахунку позиції наступного символу.
+    * @param paths        Векторні шляхи, які описують контур гліфа.
     */
-  final case class Glyph(
+  case class Glyph(
     name: String,
     unicode: Option[String],
     advanceWidth: Double,
@@ -63,234 +94,321 @@ object Hershey {
   )
 
   /**
-    * Представляє запис про шрифт в індексному файлі.
+    * Внутрішня структура, що відображає поточний стан системи шрифтів.
     *
-    * @param file назва файлу SVG з гліфами.
-    * @param name відображувана назва шрифту.
+    * @param registry Реєстр шрифтів, який містить записи про доступні шрифти.
+    * @param cache    Кеш завантажених шрифтів для прискорення доступу.
+    */
+  private case class FontState(
+    registry: Map[String, FontEntry],
+    cache: Map[String, Font]
+  )
+
+  /**
+    * Запис про шрифт, що містить інформацію про розташування файлу та назву.
+    *
+    * @param file Ім'я файлу шрифту.
+    * @param name Назва шрифту.
     */
   private case class FontEntry(file: String, name: String)
 
-  // Неявний декодер JSON для FontEntry.
-  implicit private val fontEntryDecoder: Decoder[FontEntry] = deriveDecoder[FontEntry]
-
-  // Реєстр записів про шрифти (попередньо не завантажені об’єкти Font).
-  private var fontRegistry: Map[String, FontEntry] = Map.empty
-
-  // Кеш завантажених об’єктів Font, де ключ – fontKey.
-  private var fontCache: Map[String, Font] = Map.empty
-
   /**
-    * Ініціалізує систему шрифтів, завантажуючи індексний файл.
+    * Декодер для автоматичного перетворення JSON-записів у об'єкти FontEntry.
     */
-  def init(): Unit = {
-    val indexJson = readResource("/hershey/index.json")
-    fontRegistry = parseFontRegistry(indexJson)
-  }
+  implicit private val fontEntryDecoder: Decoder[FontEntry] = deriveDecoder
 
   /**
-    * Зчитує ресурс з classpath як рядок.
+    * Початковий стан системи шрифтів, який є порожнім.
+    */
+  private val initialState: FontState = FontState(Map.empty, Map.empty)
+
+  /**
+    * Змінна, що містить поточний стан системи шрифтів. Використовується як implicit значення.
+    */
+  implicit private var implicitFontState: FontState = initialState
+
+  /**
+    * Ініціалізує систему шрифтів та оновлює внутрішній стан.
     *
-    * @param path шлях до ресурсу.
-    * @return вміст ресурсу як рядок.
-    * @throws FileNotFoundException якщо ресурс не знайдено.
+    * Метод зчитує реєстр шрифтів з JSON-файлу за шляхом "/hershey/index.json",
+    * виконує його парсинг та оновлює поточний стан системи шрифтів.
+    *
+    * @return Try[Unit] – успішне завершення ініціалізації або помилка, що виникла під час процесу.
     */
-  private def readResource(path: String): String = {
+  def init(): Try[Unit] =
+    for {
+      indexJson <- readResource("/hershey/index.json")
+      registry <- parseFontRegistry(indexJson)
+    } yield {
+      implicitFontState = FontState(registry, Map.empty)
+    }
+
+  /**
+    * Фабричний метод для завантаження шрифту.
+    *
+    * @param fontName Ім'я шрифту для завантаження.
+    * @return Try[Hershey] – успішно завантажений об'єкт Hershey або повідомлення про помилку.
+    */
+  def apply(fontName: String): Try[Hershey] =
+    loadFont(fontName)(implicitFontState).flatMap {
+      case (newState, Some(font)) =>
+        implicitFontState = newState
+        Success(new Hershey(font))
+      case (newState, None) =>
+        implicitFontState = newState
+        Failure(new NoSuchElementException(s"Шрифт '$fontName' не знайдено"))
+    }
+
+  /**
+    * Завантажує шрифт за вказаним ключем, використовуючи заданий стан системи шрифтів.
+    *
+    * @param fontKey Ключ шрифту, який необхідно завантажити.
+    * @param state   Поточний стан системи шрифтів.
+    * @return Try[(FontState, Option[Font])] – кортеж, що містить оновлений стан та опціонально завантажений шрифт.
+    */
+  private def loadFont(fontKey: String)(state: FontState): Try[(FontState, Option[Font])] =
+    state.registry
+      .get(fontKey)
+      .fold[Try[(FontState, Option[Font])]](
+        // Якщо шрифт не знайдено в реєстрі, повертаємо поточний стан та None.
+        Success((state, None))
+      ) { entry =>
+        state.cache
+          .get(fontKey)
+          .fold(
+            // Якщо шрифт відсутній у кеші, завантажуємо та виконуємо парсинг.
+            loadAndParseFont(entry).map { font =>
+              (state.copy(cache = state.cache + (fontKey -> font)), Some(font))
+            }
+          ) { font =>
+            // Якщо шрифт уже присутній у кеші, повертаємо його.
+            Success((state, Some(font)))
+          }
+      }
+
+  /**
+    * Зчитує вміст ресурсу за заданим шляхом.
+    *
+    * @param path Шлях до ресурсу.
+    * @return Try[String] – вміст ресурсу або помилка, якщо ресурс не знайдено.
+    */
+  private def readResource(path: String): Try[String] = Try {
     val stream = getClass.getResourceAsStream(path)
     if (stream == null) throw new FileNotFoundException(path)
     Source.fromInputStream(stream).mkString
   }
 
   /**
-    * Парсить JSON-індекс шрифтів.
+    * Парсить JSON-рядок, що містить реєстр шрифтів.
     *
-    * @param json JSON-рядок з індексом.
-    * @return мапа ідентифікаторів шрифтів до їх записів.
+    * @param json Рядок у форматі JSON з описом доступних шрифтів.
+    * @return Try[Map[String, FontEntry]] – мапа записів шрифтів або повідомлення про помилку парсингу.
     */
-  private def parseFontRegistry(json: String): Map[String, FontEntry] =
-    io.circe.parser.parse(json) match {
-      case Left(error) => throw new RuntimeException(s"Помилка парсингу JSON: $error")
-      case Right(json) =>
-        json.as[Map[String, FontEntry]] match {
-          case Left(error)    => throw new RuntimeException(s"Помилка декодування JSON: $error")
-          case Right(entries) => entries
-        }
-    }
+  private def parseFontRegistry(json: String): Try[Map[String, FontEntry]] =
+    parser.parse(json).flatMap(_.as[Map[String, FontEntry]]).toTry
 
   /**
-    * Завантажує шрифт з SVG-файлу та перетворює його у Font.
-    * При цьому до кожного розпарсеного гліфа застосовується трансформація
-    * (зсув по вертикалі на величину unitsPerEm та відображення по вертикалі),
-    * після чого шрифт зберігається у кеш.
+    * Завантажує шрифт з ресурсу та виконує його парсинг.
     *
-    * @param fontKey ідентифікатор шрифту.
-    * @return опціональний об’єкт Font.
+    * @param entry Запис про шрифт, що містить шлях до файлу та назву.
+    * @return Try[Font] – завантажений та розпарсений шрифт або повідомлення про помилку під час завантаження.
     */
-  def loadFont(fontKey: String): Option[Font] =
-    fontRegistry.get(fontKey).flatMap { fontEntry =>
-      try {
-        val svgContent = readResource(s"/hershey/${fontEntry.file}")
-        val xml = XML.loadString(svgContent)
+  private def loadAndParseFont(entry: FontEntry): Try[Font] =
+    for {
+      content <- readResource(s"/hershey/${entry.file}")
+      xml <- Try(XML.loadString(content))
+      font <- parseFontXml(xml)
+    } yield font
 
-        // Знаходимо елемент <font>.
-        val fontNode = (xml \\ "font").headOption.getOrElse {
-          throw new Exception("Не знайдено елемент <font> у SVG")
-        }
-        val fontId = (fontNode \@ "id").trim
-        // Значення horiz-adv-x, що використовується як дефолтна горизонтальна ширина.
-        val defaultHorizAdvX = (fontNode \@ "horiz-adv-x").trim.toInt
-
-        // Парсимо <font-face>.
-        val fontFaceNode = (fontNode \\ "font-face").headOption.getOrElse {
-          throw new Exception("Не знайдено елемент <font-face> у SVG")
-        }
-        val fontFace = FontFace(
-          familyName = (fontFaceNode \@ "font-family").trim,
-          unitsPerEm = (fontFaceNode \@ "units-per-em").trim.toInt,
-          ascent = (fontFaceNode \@ "ascent").trim.toInt,
-          descent = (fontFaceNode \@ "descent").trim.toInt,
-          capHeight = (fontFaceNode \@ "cap-height").trim.toInt,
-          xHeight = (fontFaceNode \@ "x-height").trim.toInt
+  /**
+    * Парсить XML-документ шрифту та створює об'єкт Font.
+    *
+    * @param xml XML-документ, що містить інформацію про шрифт.
+    * @return Try[Font] – розпарсений шрифт або повідомлення про помилку, якщо парсинг неможливий.
+    */
+  private def parseFontXml(xml: Node): Try[Font] =
+    for {
+      fontNode <- getSingleNode(xml, "font")
+      fontFace <- parseFontFace(fontNode)
+      glyphs <- parseGlyphs(fontNode, fontFace)
+      missing <- parseMissingGlyph(fontNode, fontFace)
+    } yield {
+      val combined = glyphs ++ missing
+      val allGlyphs = combined.withDefault { key =>
+        combined.getOrElse(
+          "missing",
+          throw new NoSuchElementException(s"Гліф для ключа '$key' не знайдено, а missing glyph не визначено")
         )
-
-        // Парсимо всі елементи <glyph> та застосовуємо трансформацію до кожного гліфа.
-        val glyphs: Map[String, Glyph] = (fontNode \\ "glyph").flatMap { glyphNode =>
-          val gName = (glyphNode \@ "glyph-name").trim
-          if (gName.isEmpty) None
-          else {
-            val unicodeOpt = (glyphNode \@ "unicode") match {
-              case s if s.nonEmpty => Some(s)
-              case _               => None
-            }
-            val adv = (glyphNode \@ "horiz-adv-x").trim match {
-              case s if s.nonEmpty => s.toDouble
-              case _               => defaultHorizAdvX
-            }
-            val d = (glyphNode \@ "d").trim
-            val rawPaths: Paths = if (d.nonEmpty) parsePathData(d) else Paths(Seq.empty)
-            // Створюємо гліф і застосовуємо до нього трансформацію.
-            val rawGlyph = Glyph(gName, unicodeOpt, adv, rawPaths)
-            Some(gName -> transformGlyph(rawGlyph, fontFace))
-          }
-        }.toMap
-
-        // Аналогічно обробляємо <missing-glyph>, якщо він існує.
-        val allGlyphs: Map[String, Glyph] = (fontNode \\ "missing-glyph").headOption match {
-          case Some(node) =>
-            val adv = (node \@ "horiz-adv-x").trim match {
-              case s if s.nonEmpty => s.toInt
-              case _               => defaultHorizAdvX
-            }
-            val missingGlyph = Glyph("missing-glyph", None, adv, Paths(Seq.empty))
-            // Застосовуємо трансформацію до missing-гліфа.
-            glyphs + (null.asInstanceOf[String] -> transformGlyph(missingGlyph, fontFace))
-          case None =>
-            glyphs
-        }
-
-        val font = Font(fontId, fontFace, allGlyphs)
-        fontCache += (fontKey -> font)
-        Some(font)
-      } catch {
-        case e: Exception =>
-          println(s"Помилка завантаження шрифту $fontKey: ${e.getMessage}")
-          None
       }
+      Font(
+        fontId = (fontNode \@ "id").trim,
+        fontFace = fontFace,
+        glyphs = allGlyphs
+      )
     }
 
   /**
-    * Парсить рядок з SVG-шляхами у послідовність об’єктів Path.
+    * Знаходить єдиний XML-вузол за заданою назвою тегу.
     *
-    * @param d рядок з даними шляху у форматі SVG.
-    * @return послідовність шляхів.
+    * @param root Кореневий XML-вузол.
+    * @param tag  Назва тегу, який необхідно знайти.
+    * @return Try[Node] – знайдений вузол або повідомлення про помилку, якщо вузол відсутній.
     */
-  private def parsePathData(d: String): Paths = {
-    // Вставляємо пробіл між числом та наступною командою.
-    val preprocessed = d.replaceAll("(?<=[0-9\\.])(?=[A-Za-z])", " ")
-    Paths(
-      preprocessed
-        .split("M")
-        .filter(_.nonEmpty)
-        .map { subpath =>
-          val tokens = subpath.trim.split("\\s+").toList
-          tokens match {
-            case x :: y :: rest =>
-              val initialPoint = Point(parseToken(x), parseToken(y))
-              val points = scala.collection.mutable.ListBuffer(initialPoint)
-              var remainingTokens = rest
-              while (remainingTokens.nonEmpty) {
-                remainingTokens match {
-                  case head :: a :: b :: tail if head.forall(_.isLetter) =>
-                    // Якщо перший токен — це команда (наприклад, "L"), видаляємо його та обробляємо наступні токени.
-                    points += Point(parseToken(a), parseToken(b))
-                    remainingTokens = tail
-                  case a :: b :: tail =>
-                    // Якщо токени вже чисті, просто перетворюємо їх.
-                    points += Point(parseToken(a), parseToken(b))
-                    remainingTokens = tail
-                  case _ =>
-                    remainingTokens = Nil
-                }
-              }
-              Path(points.toSeq)
-            case _ =>
-              throw new IllegalArgumentException("Невірний формат шляху")
-          }
-        }
-        .toSeq
+  private def getSingleNode(root: Node, tag: String): Try[Node] =
+    (root \\ tag).headOption.fold[Try[Node]](
+      Failure(new Exception(s"Відсутній елемент <$tag>"))
+    )(Success(_))
+
+  /**
+    * Виконує парсинг метрик шрифту з XML-вузла.
+    *
+    * @param fontNode XML-вузол, що містить інформацію про шрифт.
+    * @return Try[FontFace] – розпарсені метрики шрифту або повідомлення про помилку, якщо парсинг неможливий.
+    */
+  private def parseFontFace(fontNode: Node): Try[FontFace] = Try {
+    val face = (fontNode \\ "font-face").head
+    FontFace(
+      familyName = face \@ "font-family",
+      unitsPerEm = (face \@ "units-per-em").toInt,
+      ascent = (face \@ "ascent").toInt,
+      descent = (face \@ "descent").toInt
     )
   }
 
-  private def parseToken(token: String): Double = {
-    // Видаляємо всі літери на початку рядка.
-    val cleaned = token.replaceAll("^[A-Za-z]+", "")
-    cleaned.toDouble
+  /**
+    * Парсить гліфи шрифту з XML-вузла.
+    *
+    * @param fontNode XML-вузол з інформацією про гліфи.
+    * @param fontFace Метрики шрифту, необхідні для обчислення координат.
+    * @return Try[Map[String, Glyph]] – мапа гліфів, де ключем є символ або назва гліфа, або повідомлення про помилку, якщо парсинг неможливий.
+    */
+  private def parseGlyphs(fontNode: Node, fontFace: FontFace): Try[Map[String, Glyph]] = Try {
+    (fontNode \\ "glyph").collect {
+      case g if (g \@ "glyph-name").nonEmpty =>
+        val name = g \@ "glyph-name"
+        val unicode = Option(g \@ "unicode").filter(_.nonEmpty)
+        val advance = (g \@ "horiz-adv-x").toDoubleOption.getOrElse(
+          (fontNode \@ "horiz-adv-x").toDouble
+        )
+        // Парсинг даних шляху, після чого виконується трансформація координат.
+        val paths = parsePathData(g \@ "d")
+          .translate(0, fontFace.unitsPerEm)
+          .scale(1.0, -1.0)
+
+        unicode.getOrElse(name) -> Glyph(name, unicode, advance, paths)
+    }.toMap
   }
 
   /**
-    * Отримує гліф для вказаного символу, шукаючи за Unicode.
-    * Якщо відповідний гліф не знайдено, повертається missing glyph (під ключем null).
-    * Якщо Unicode гліфа містить кілька символів, використовується перший.
+    * Парсить інформацію про відсутній гліф з XML-вузла.
     *
-    * @param fontKey ідентифікатор шрифту.
-    * @param ch      символ, для якого шукаємо гліф.
-    * @return опціональний об’єкт Glyph.
+    * Якщо XML-документ містить елемент <missing-glyph>, створюється відповідний гліф,
+    * який використовується для відображення символів, що не знайдені у основному наборі гліфів.
+    *
+    * @param fontNode XML-вузол, що містить інформацію про шрифт.
+    * @param fontFace Метрики шрифту.
+    * @return Try[Map[String, Glyph]] – мапа з гліфом для відсутніх символів або порожня мапа, якщо елемент відсутній.
     */
-  def getGlyph(fontKey: String, ch: Char): Option[Glyph] =
-    fontCache.get(fontKey) orElse loadFont(fontKey) match {
-      case Some(font) =>
-        font.glyphs.values.find { g =>
-          g.unicode.exists { u =>
-            u.nonEmpty && u.head == ch
-          }
-        } orElse font.glyphs.get(null)
-      case None => None
-    }
-
-  /**
-    * Повертає список доступних шрифтів.
-    *
-    * @return мапа ідентифікаторів шрифтів до їх назв.
-    */
-  def listFonts(): Map[String, String] =
-    fontRegistry.map { case (k, v) => k -> v.name }
-
-  /**
-    * Приватний метод трансформації розпарсеного гліфа.
-    * Трансформація застосовується таким чином:
-    *
-    *   translate(0, fontFace.unitsPerEm) scale(1, -1)
-    *
-    * Тобто до даних контуру додається зсув по вертикалі, рівний unitsPerEm,
-    * після чого відбувається відображення по вертикалі.
-    *
-    * @param glyph    розпарсений гліф.
-    * @param fontFace метрики шрифту.
-    * @return трансформований гліф.
-    */
-  private def transformGlyph(glyph: Glyph, fontFace: FontFace): Glyph = {
-    val newPaths = glyph.paths
-      .translate(0, fontFace.unitsPerEm.toDouble)
-      .transform(p => Point(p.x, -p.y))
-    glyph.copy(paths = newPaths)
+  private def parseMissingGlyph(fontNode: Node, fontFace: FontFace): Try[Map[String, Glyph]] = Try {
+    (fontNode \\ "missing-glyph").headOption.map { g =>
+      val advance = (g \@ "horiz-adv-x").toDoubleOption.getOrElse(
+        (fontNode \@ "horiz-adv-x").toDouble
+      )
+      "missing" -> Glyph("missing", None, advance, Paths.empty)
+    }.toMap
   }
+
+  /**
+    * Парсить рядок даних шляху у форматі SVG.
+    *
+    * Метод використовує рекурсію для перетворення послідовності токенів у об'єкт Paths, що містить
+    * список векторних шляхів, кожен з яких формується з послідовності точок.
+    *
+    * @param d Рядок, що містить дані шляху у форматі SVG.
+    * @return Paths – об'єкт, що містить розпарсені векторні шляхи.
+    */
+  private def parsePathData(d: String): Paths = {
+    @tailrec
+    def parse(tokens: List[String], acc: List[Path] = Nil, current: Path = Path(Nil)): Paths =
+      tokens match {
+        case "M" :: x :: y :: rest =>
+          parse(rest, acc, Path(List(Point(x.toDouble, y.toDouble))))
+        case "L" :: x :: y :: rest =>
+          parse(rest, acc, current.copy(points = current.points :+ Point(x.toDouble, y.toDouble)))
+        case Nil =>
+          Paths(acc :+ current)
+        case _ =>
+          Paths(acc)
+      }
+    val tokenPattern = "([A-Za-z])|(-?\\d+(\\.\\d+)?)".r
+    val tokens = tokenPattern.findAllIn(d).toList
+    parse(tokens)
+  }
+
+  /**
+    * Виконує трансформацію гліфа шляхом переміщення та масштабування.
+    *
+    * @param glyph   Гліф, який необхідно трансформувати.
+    * @param cursor  Початкова позиція, з якої починається рендеринг гліфа.
+    * @param options Опції трансформації, що включають масштабування.
+    * @return Paths – векторні шляхи після застосування трансформації.
+    */
+  private def transformGlyph(glyph: Glyph, cursor: Point, options: RenderingOptions): Paths =
+    glyph.paths
+      .translate(cursor.x, cursor.y)
+      .scale(options.scale)
+
+  /**
+    * Оновлює позицію курсора після рендерингу гліфа.
+    *
+    * Після відображення гліфа позиція курсора коригується з урахуванням ширини символу та додаткового відступу.
+    *
+    * @param cursor  Поточна позиція курсора.
+    * @param glyph   Гліф, що був відрендерений.
+    * @param options Опції рендерингу, які містять масштаб та відступ між символами.
+    * @return Point – нова позиція курсора.
+    */
+  private def updateCursor(cursor: Point, glyph: Glyph, options: RenderingOptions): Point =
+    cursor.copy(
+      x = cursor.x + (glyph.advanceWidth * options.scale) + options.charSpacing
+    )
+
+  /**
+    * Клас, що містить опції рендерингу тексту.
+    *
+    * @param scale       Масштаб, який застосовується до гліфів.
+    * @param charSpacing Відступ між символами.
+    * @param origin      Початкова точка рендерингу.
+    */
+  case class RenderingOptions(
+    scale: Double = 1.0,
+    charSpacing: Double = 0.0,
+    origin: Point = Point.zero
+  )
+
+  /**
+    * Розширення для об'єктів типу Try[Hershey] для зручної роботи зі шрифтами.
+    *
+    * @param self об'єкт типу Try[Hershey], що містить завантажений шрифт
+    */
+  implicit class RichHersheyFont(val self: Try[Hershey]) {
+
+    /**
+      * Рендерить заданий текст за допомогою завантаженого шрифту.
+      *
+      * @param text Текст, який потрібно відобразити.
+      * @return Try[Paths] – спроба отримати векторні шляхи рендереного тексту.
+      */
+    def render(text: String): Try[Paths] = self.map(_.renderText(text))
+
+    /**
+      * Комбінує два об'єкти типу Try[Hershey] у кортеж.
+      *
+      * @param other Інший об'єкт типу Try[Hershey].
+      * @return Try[(Hershey, Hershey)] – спроба отримати кортеж, що містить два завантажених шрифти.
+      */
+    def combine(other: Try[Hershey]): Try[(Hershey, Hershey)] =
+      self.flatMap(a => other.map(b => (a, b)))
+  }
+
 }

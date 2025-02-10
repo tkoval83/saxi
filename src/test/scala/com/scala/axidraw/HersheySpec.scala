@@ -3,49 +3,134 @@ package com.scala.axidraw
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
+import scala.util.{Failure, Success}
+
 class HersheySpec extends AnyWordSpec with Matchers {
 
   "Система шрифтів Hershey" should {
 
-    "ініціалізуватися та повернути список доступних шрифтів з index.json" in {
-      // Ініціалізуємо систему шрифтів (index.json має бути у main/resources)
-      Hershey.init()
-      val fonts = Hershey.listFonts()
-      fonts should not be empty
+    "ініціалізуватися та завантажити всі шрифти з index.json" in {
+      // Ініціалізуємо систему шрифтів
+      Hershey.init() match {
+        case Failure(ex) => fail(s"Ініціалізація не вдалася: $ex")
+        case Success(_)  => // ініціалізація пройшла успішно
+      }
 
-      // Перевіряємо, що деякі ключі з наданого index.json присутні
-      fonts should contain key ("ems_allure")
-      fonts should contain key ("hershey_sans_1")
-      println(s"Доступні шрифти: $fonts")
+      // Очікувані ключі з index.json
+      val expectedKeys = Set(
+        "ems_allure",
+        "ems_elfin",
+        "ems_felix",
+        "ems_nixish",
+        "ems_nixish_italic",
+        "ems_osmotron",
+        "ems_readability",
+        "ems_readability_italic",
+        "ems_tech",
+        "hershey_goth_english",
+        "hershey_sans_1",
+        "hershey_sans_med",
+        "hershey_script_1",
+        "hershey_script_med",
+        "hershey_serif_bold",
+        "hershey_serif_bold_italic",
+        "hershey_serif_med",
+        "hershey_serif_med_italic"
+      )
+
+      // Для кожного ключа перевіряємо, що можна створити Hershey instance
+      expectedKeys.foreach { key =>
+        withClue(s"Ключ '$key': ") {
+          Hershey(key) match {
+            case Failure(ex) =>
+              fail(s"Завантаження шрифту для ключа '$key' не вдалося: $ex")
+            case Success(_) =>
+            // Успішне завантаження
+          }
+        }
+      }
     }
 
-    "завантажувати шрифт hershey_sans_1 та містити missing-glyph (з ключем null)" in {
-      Hershey.init()
-      val fontKey = "hershey_sans_1" // Переконайтеся, що цей ключ збігається з index.json
-      val fontOpt = Hershey.loadFont(fontKey)
-      fontOpt should not be empty
-      val font = fontOpt.get
+    "повертати Failure при завантаженні невідомого ключа шрифту" in {
+      Hershey.init() match {
+        case Failure(ex) => fail(s"Ініціалізація не вдалася: $ex")
+        case Success(_)  => // ініціалізація успішна
+      }
 
-      // Перевіряємо, що у мапі glyphs є запис з ключем null, який відповідає missing-glyph
-      font.glyphs should contain key (null)
-      val missingGlyph = font.glyphs(null)
-      missingGlyph.advanceWidth should be > 0.0
+      val unknownKey = "невідомий_шрифт"
+      Hershey(unknownKey) match {
+        case Success(_) =>
+          fail(s"Шрифт '$unknownKey' повинен бути невідомим, але було завантажено")
+        case Failure(_) =>
+          succeed // Очікувано – шрифт не знайдено
+      }
     }
 
-    "повернути гліф для символу 'A' для шрифту hershey_sans_1" in {
-      Hershey.init()
+    "містити гліф 'A' у шрифті HersheySans1" in {
+      Hershey.init() match {
+        case Failure(exception) =>
+          fail(s"Ініціалізація не вдалася: $exception")
+        case Success(_) =>
+      }
+
       val fontKey = "hershey_sans_1"
-      // Отримуємо гліф для символу 'A'
-      val glyphOpt = Hershey.getGlyph(fontKey, 'A')
-      glyphOpt should not be empty
-      val glyph = glyphOpt.get
+      Hershey(fontKey) match {
+        case Failure(exception) =>
+          fail(s"Завантаження шрифту '$fontKey' не вдалося: $exception")
+        case Success(hersheyInstance) =>
+          // Перевіряємо, що шрифт містить гліф для символу "A"
+          val font = hersheyInstance.font
+          font.glyphs should contain key ("A")
 
-      // Перевіряємо, що Unicode значення гліфа містить символ 'A'
-      glyph.unicode match {
-        case Some(u) => u.head shouldEqual 'A'
-        case None    => fail("Гліф для 'A' не містить Unicode значення")
+          val glyphA = font.glyphs("A")
+          glyphA.name shouldBe "A"
+          // Очікувана ширина символу згідно з атрибутом horiz-adv-x (567)
+          glyphA.advanceWidth shouldBe 567.0
+          // Переконуємося, що векторні дані не порожні
+          glyphA.paths.paths should not be empty
+      }
+    }
+
+    "повертати Paths, що відповідають missing glyph для неіснуючого символу" in {
+      Hershey.init() match {
+        case Failure(ex) => fail(s"Ініціалізація не вдалася: $ex")
+        case Success(_)  =>
+      }
+
+      val fontKey = "hershey_sans_1"
+      Hershey(fontKey) match {
+        case Failure(exception) =>
+          fail(s"Завантаження шрифту '$fontKey' не вдалося: $exception")
+        case Success(hersheyInstance) =>
+          // Використовуємо символ, якого немає у шрифті (наприклад, "🚀")
+          val nonExistingSymbol = "🚀"
+          val options = Hershey.RenderingOptions(scale = 1.0, charSpacing = 0.0, origin = Point.zero)
+          val renderedPaths = hersheyInstance.renderText(nonExistingSymbol, options)
+
+          // Оскільки для неіснуючого символу використовується missing glyph,
+          // а missing glyph має порожні векторні шляхи, очікуємо, що результат також порожній
+          renderedPaths.paths shouldBe empty
+      }
+    }
+
+    "повертати missing glyph при запиті неіснуючого символу" in {
+      Hershey.init() match {
+        case Failure(ex) => fail(s"Ініціалізація не вдалася: $ex")
+        case Success(_)  =>
+      }
+
+      val fontKey = "hershey_sans_1"
+      Hershey(fontKey) match {
+        case Failure(ex) =>
+          fail(s"Завантаження шрифту '$fontKey' не вдалося: $ex")
+        case Success(hersheyInstance) =>
+          val font = hersheyInstance.font
+          // Запитуємо гліф для неіснуючого символу (наприклад, "nonexistent")
+          val nonExistingKey = "nonexistent"
+          // Завдяки fallback‑логіці (через withDefault) виклик повертає гліф "missing"
+          val fallbackGlyph = font.glyphs(nonExistingKey)
+          fallbackGlyph.name shouldEqual "missing"
       }
     }
   }
-
 }

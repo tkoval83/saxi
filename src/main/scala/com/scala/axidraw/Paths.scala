@@ -3,9 +3,6 @@ package com.scala.axidraw
 import org.locationtech.jts.geom.{Coordinate, GeometryFactory, LineString}
 import org.locationtech.jts.simplify.DouglasPeuckerSimplifier
 
-import java.awt._
-import java.awt.geom._
-import java.awt.image.BufferedImage
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 import scala.math.{max, min, sqrt}
@@ -115,6 +112,14 @@ case class Point(x: Double, y: Double) {
   }
 }
 
+object Point {
+
+  /**
+    * Точка з нульовими координатами
+    * */
+  val zero: Point = Point(0, 0)
+}
+
 /**
   * Модель шляху малювання, що складається з послідовності точок.
   *
@@ -200,6 +205,14 @@ case class Paths(paths: Seq[Path]) {
     transform(p => com.scala.axidraw.Point(p.x + dx, p.y + dy))
 
   /**
+    * Об'єднує (комбінує) цей об'єкт Paths з іншим.
+    *
+    * @param other Інший об'єкт Paths для об'єднання.
+    * @return Новий об'єкт Paths, що містить усі шляхи з обох колекцій.
+    */
+  def combine(other: Paths): Paths = Paths(this.paths ++ other.paths)
+
+  /**
     * Масштабує креслення за заданим коефіцієнтом.
     *
     * @param factor Коефіцієнт масштабування (наприклад, 0.5 для зменшення, 2.0 для збільшення)
@@ -207,6 +220,16 @@ case class Paths(paths: Seq[Path]) {
     */
   def scale(factor: Double): Paths =
     transform(p => com.scala.axidraw.Point(p.x * factor, p.y * factor))
+
+  /**
+    * Масштабує креслення за окремими коефіцієнтами по осі X та Y.
+    *
+    * @param sx Коефіцієнт масштабування по осі X.
+    * @param sy Коефіцієнт масштабування по осі Y.
+    * @return Нове креслення з масштабованими точками.
+    */
+  def scale(sx: Double, sy: Double): Paths =
+    transform(p => com.scala.axidraw.Point(p.x * sx, p.y * sy))
 
   /**
     * Обертає креслення на заданий кут (в радіанах) навколо початку координат.
@@ -359,83 +382,15 @@ case class Paths(paths: Seq[Path]) {
     Paths(validPaths)
   }
 
-  /**
-    * Рендерить креслення в BufferedImage, використовуючи AWT.
-    *
-    * @param scale Масштабний коефіцієнт (за замовчуванням 109)
-    * @param margin Відступ (в міліметрах, за замовчуванням 1) – буде помножено на scale
-    * @param lineWidth Товщина лінії (в міліметрах, за замовчуванням 0.35/25.4)
-    * @param boundsOpt Опціональні межі креслення у форматі (x1, y1, x2, y2). Якщо не задано – використовується метод bounds.
-    * @param showBounds Прапорець, чи малювати межі (bounding box) креслення
-    * @return BufferedImage із зображенням креслення
-    */
-  def render(
-    scale: Double = 109,
-    margin: Double = 1,
-    lineWidth: Double = 0.35 / 25.4,
-    boundsOpt: Option[(Double, Double, Double, Double)] = None,
-    showBounds: Boolean = true
-  ): BufferedImage = {
-    // Визначення меж: якщо boundsOpt не задано, використовуємо метод bounds креслення
-    val (x1, y1, x2, y2) = boundsOpt.getOrElse(bounds)
-    val w = x2 - x1
-    val h = y2 - y1
-
-    // Обчислення відступу (margin) та розмірів зображення (margin враховано)
-    val m = margin * scale
-    val imageWidth = (scale * w + 2 * m).toInt
-    val imageHeight = (scale * h + 2 * m).toInt
-
-    // Створення BufferedImage
-    val image = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_RGB)
-    val g2 = image.createGraphics()
-    try {
-      // Включення антиаліасингу
-      g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-
-      // *** FIX: Скидаємо трансформацію до одиничної та заповнюємо весь фон білим кольором.
-      g2.setTransform(new AffineTransform()) // скидання до одиничної матриці
-      g2.setColor(Color.WHITE)
-      g2.fillRect(0, 0, imageWidth, imageHeight)
-
-      // Побудова аффінного перетворення:
-      // 1. Перенос на відступ margin (m)
-      // 2. Масштабування на scale
-      // 3. Перенос (-x1, -y1), щоб креслення розпочиналося з (x1, y1)
-      val at = new AffineTransform()
-      at.translate(m, m)
-      at.scale(scale, scale)
-      at.translate(-x1, -y1)
-      g2.setTransform(at)
-
-      // За бажанням, малюємо межі (bounding box) креслення сірим кольором
-      if (showBounds) {
-        g2.setColor(Color.GRAY)
-        g2.setStroke(new BasicStroke((1.0 / scale).toFloat))
-        g2.draw(new Rectangle2D.Double(x1, y1, w, h))
-      }
-
-      // Малювання шляхів креслення чорним кольором
-      g2.setColor(Color.BLACK)
-      g2.setStroke(new BasicStroke(lineWidth.toFloat, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND))
-      for (path <- paths if path.points.nonEmpty) {
-        val path2d = new Path2D.Double()
-        val first = path.points.head
-        path2d.moveTo(first.x, first.y)
-        path.points.tail.foreach { p =>
-          path2d.lineTo(p.x, p.y)
-        }
-        g2.draw(path2d)
-      }
-    } finally {
-      g2.dispose()
-    }
-    image
-  }
-
 }
 
 /**
   * Допоміжний об'єкт для роботи з кресленнями.
   */
-object Paths {}
+object Paths {
+
+  /**
+    * Порожні шляхи
+    */
+  val empty: Paths = Paths(Nil)
+}
