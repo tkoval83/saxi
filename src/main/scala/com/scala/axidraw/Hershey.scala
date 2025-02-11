@@ -357,20 +357,27 @@ object Hershey {
     */
   private def parsePathData(d: String): Paths = {
     @tailrec
-    def parse(tokens: List[String], acc: List[Path] = Nil, current: Path = Path(Nil)): Paths =
+    def parse(tokens: List[String], acc: List[Path], current: Path): Paths =
       tokens match {
         case "M" :: x :: y :: rest =>
-          parse(rest, acc, Path(List(Point(x.toDouble, y.toDouble))))
+          // If the current path is non-empty, add it to the accumulator
+          val newAcc = if (current.points.nonEmpty) acc :+ current else acc
+          // Start a new path with the new "M" coordinate
+          parse(rest, newAcc, Path(List(Point(x.toDouble, y.toDouble))))
         case "L" :: x :: y :: rest =>
+          // Continue adding points to the current path
           parse(rest, acc, current.copy(points = current.points :+ Point(x.toDouble, y.toDouble)))
         case Nil =>
-          Paths(acc :+ current)
+          // When tokens are exhausted, add the last current path (if non-empty)
+          if (current.points.nonEmpty) Paths(acc :+ current) else Paths(acc)
         case _ =>
+          // In case of unexpected tokens, return what we have so far
           Paths(acc)
       }
+
     val tokenPattern = "([A-Za-z])|(-?\\d+(\\.\\d+)?)".r
     val tokens = tokenPattern.findAllIn(d).toList
-    parse(tokens)
+    parse(tokens, Nil, Path(Nil))
   }
 
   /**
