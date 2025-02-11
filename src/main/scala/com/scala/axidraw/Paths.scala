@@ -382,6 +382,35 @@ case class Paths(paths: Seq[Path]) {
     Paths(validPaths)
   }
 
+  /**
+    * Рендерить шляхи, перетворює його у SVG <path> елементи та повертає повноцінний SVG документ.
+    *
+    * @param width  Ширина SVG-площини (за замовчуванням 500).
+    * @param height Висота SVG-площини (за замовчуванням 200).
+    * @return SVG документ.
+    */
+  def toSvg(width: Double, height: Double): String = {
+    // Перетворюємо кожну послідовність точок у SVG <path> елемент.
+    val svgPaths = paths
+      .map { path =>
+        if (path.points.isEmpty) ""
+        else {
+          val moveTo = s"M${path.points.head.x},${path.points.head.y}"
+          val lineTos = path.points.tail.map(pt => s"L${pt.x},${pt.y}").mkString(" ")
+          s"""<path d="$moveTo $lineTos" fill="none" stroke="black" stroke-width="1" />"""
+        }
+      }
+      .mkString("\n")
+    // Обгортаємо результати у повноцінний SVG документ.
+    s"""<?xml version="1.0" encoding="UTF-8"?>
+       |<svg xmlns="http://www.w3.org/2000/svg" width="$width" height="$height" viewBox="0 0 $width $height">
+       |  <g>
+       |    $svgPaths
+       |  </g>
+       |</svg>
+       |""".stripMargin
+  }
+
 }
 
 /**
