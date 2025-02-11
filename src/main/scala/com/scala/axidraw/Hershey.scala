@@ -19,28 +19,53 @@ import scala.xml.{Node, XML}
 class Hershey(val font: Font) {
 
   /**
-    * Рендерить заданий текст у вигляді векторних шляхів.
+    * Рендерить багаторядковий текст, розбиваючи його на окремі рядки за символом '\n'.
+    * Для кожного рядка обчислює позицію та додає відповідні векторні шляхи.
     *
-    * Метод послідовно обробляє кожний символ тексту, знаходить відповідний гліф у шрифті,
-    * застосовує до нього трансформації згідно з переданими параметрами та об'єднує результуючі шляхи.
-    *
-    * @param text    Текст, який необхідно відобразити.
-    * @param options Опції рендерингу, що включають масштаб, відступ між символами та початкову точку.
-    * @return Paths – векторні шляхи, що представляють рендерений текст.
+    * @param text    Вхідний текст із можливими переводами рядків
+    * @param options Параметри відображення (масштаб, інтервали, початкова позиція)
+    * @return Paths Об'єднані векторні шляхи для всього тексту
     */
-  def renderText(text: String, options: RenderingOptions = RenderingOptions()): Paths =
-    text
-      .foldLeft((Paths.empty, options.origin)) {
-        case ((acc, cursor), char) =>
-          // Спроба знайти гліф для символу; якщо гліф відсутній, використовується спеціальний "missing" гліф.
-          val glyphOpt = font.glyphs.get(char.toString).orElse(font.glyphs.get("missing"))
-          glyphOpt.fold((acc, cursor)) { glyph =>
-            val transformed = transformGlyph(glyph, cursor, options)
-            val newCursor = updateCursor(cursor, glyph, options)
-            (acc.combine(transformed), newCursor)
-          }
+  def renderText(text: String, options: RenderingOptions = RenderingOptions()): Paths = {
+    val lines = text.split('\n').toList
+    val lineHeight = font.fontFace.unitsPerEm * options.scale + options.lineSpacing
+    lines
+      .foldLeft((Paths.empty, options.origin.y)) {
+        case ((accPaths, currentY), line) =>
+          val lineOrigin = Point(options.origin.x, currentY)
+          val (linePaths, _) = renderLine(line, lineOrigin, options)
+          val nextY = currentY + lineHeight
+          (accPaths.combine(linePaths), nextY)
       }
       ._1
+  }
+
+  /**
+    * Рендерить окремий рядок тексту, обробляючи символи зліва направо.
+    *
+    * @param line       Текст рядка для відображення
+    * @param lineOrigin Початкова позиція рядка (лівий край)
+    * @param options    Параметри відображення
+    * @return Кортеж:
+    *         - Paths: векторні шляхи для цього рядка
+    *         - Double: кінцева позиція X після останнього символу
+    */
+  private def renderLine(
+    line: String,
+    lineOrigin: Point,
+    options: RenderingOptions
+  ): (Paths, Double) =
+    line.foldLeft((Paths.empty, lineOrigin.x)) {
+      case ((acc, cursorX), char) =>
+        font.glyphs
+          .get(char.toString)
+          .orElse(font.glyphs.get("missing"))
+          .fold((acc, cursorX)) { glyph =>
+            val transformed = transformGlyph(glyph, Point(cursorX, lineOrigin.y), options)
+            val newCursorX = cursorX + (glyph.advanceWidth * options.scale) + options.charSpacing
+            (acc.combine(transformed), newCursorX)
+          }
+    }
 
   /**
     * Виконує трансформацію гліфа шляхом переміщення та масштабування.
@@ -55,20 +80,6 @@ class Hershey(val font: Font) {
       .translate(cursor.x, cursor.y)
       .scale(options.scale)
 
-  /**
-    * Оновлює позицію курсора після рендерингу гліфа.
-    *
-    * Після відображення гліфа позиція курсора коригується з урахуванням ширини символу та додаткового відступу.
-    *
-    * @param cursor  Поточна позиція курсора.
-    * @param glyph   Гліф, що був відрендерений.
-    * @param options Опції рендерингу, які містять масштаб та відступ між символами.
-    * @return Point – нова позиція курсора.
-    */
-  private def updateCursor(cursor: Point, glyph: Glyph, options: RenderingOptions): Point =
-    cursor.copy(
-      x = cursor.x + (glyph.advanceWidth * options.scale) + options.charSpacing
-    )
 }
 
 /**
@@ -390,6 +401,7 @@ object Hershey {
   case class RenderingOptions(
     scale: Double = 1.0,
     charSpacing: Double = 0.0,
+    lineSpacing: Double = 0.0,
     origin: Point = Point.zero
   )
 }
