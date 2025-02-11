@@ -149,7 +149,7 @@ class HersheySpec extends AnyWordSpec with Matchers {
           val renderedPaths = hersheyInstance.font.glyphs(text).paths
 
           // Генеруємо SVG документ із заданими розмірами (наприклад, 500x200)
-          val svgOutput = renderedPaths.toSvg(500, 200)
+          val svgOutput = renderedPaths.toSvg()
           svgOutput should include("<svg")
           svgOutput should include("<path")
           svgOutput.length should be > 0

@@ -383,15 +383,38 @@ case class Paths(paths: Seq[Path]) {
   }
 
   /**
-    * Рендерить шляхи, перетворює його у SVG <path> елементи та повертає повноцінний SVG документ.
+    * Рендерить шляхи, перетворює їх у SVG <path> елементи та повертає повноцінний SVG документ.
     *
-    * @param width  Ширина SVG-площини.
-    * @param height Висота SVG-площини.
+    * Якщо widthOpt та heightOpt не задані, використовується реальний розмір креслення (за допомогою width і height).
+    * Якщо ж задані, шляхи масштабуються, щоб поміститися у задану площину.
+    *
+    * @param widthOpt  Опціональна ширина SVG-площини.
+    * @param heightOpt Опціональна висота SVG-площини.
     * @return SVG документ.
     */
-  def toSvg(width: Double, height: Double): String = {
+  def toSvg(widthOpt: Option[Double] = None, heightOpt: Option[Double] = None): String = {
+    // Якщо опціональні параметри задані, масштабувати креслення до потрібного розміру.
+    // Інакше використовувати фактичні розміри креслення.
+    val finalPaths: Paths =
+      (widthOpt, heightOpt) match {
+        case (Some(w), Some(h)) => this.scaleToFit(w, h)
+        case _                  => this
+      }
+
+    // Використовуємо вже існуючі методи width та height або обчислюємо bounds для viewBox.
+    val (minX, minY, maxX, maxY) = finalPaths.bounds
+    val actualWidth = finalPaths.width
+    val actualHeight = finalPaths.height
+
+    // Якщо caller не задав розміри, беремо фактичні розміри креслення.
+    val svgWidth = widthOpt.getOrElse(actualWidth)
+    val svgHeight = heightOpt.getOrElse(actualHeight)
+
+    // Встановлюємо viewBox за фактичними межами.
+    val viewBox = s"$minX $minY ${maxX - minX} ${maxY - minY}"
+
     // Перетворюємо кожну послідовність точок у SVG <path> елемент.
-    val svgPaths = paths
+    val svgPaths = finalPaths.paths
       .map { path =>
         if (path.points.isEmpty) ""
         else {
@@ -401,9 +424,10 @@ case class Paths(paths: Seq[Path]) {
         }
       }
       .mkString("\n")
+
     // Обгортаємо результати у повноцінний SVG документ.
     s"""<?xml version="1.0" encoding="UTF-8"?>
-       |<svg xmlns="http://www.w3.org/2000/svg" width="$width" height="$height" viewBox="0 0 $width $height">
+       |<svg xmlns="http://www.w3.org/2000/svg" width="$svgWidth" height="$svgHeight" viewBox="$viewBox">
        |  <g>
        |    $svgPaths
        |  </g>
