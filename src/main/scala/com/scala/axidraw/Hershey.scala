@@ -385,6 +385,12 @@ object Hershey {
     charSpacing: Double = 0.0,
     origin: Point = Point.zero
   )
+}
+
+/**
+  * Розширення для Hershey.
+  */
+object HersheyExtensions {
 
   /**
     * Розширення для об'єктів типу Try[Hershey] для зручної роботи зі шрифтами.
