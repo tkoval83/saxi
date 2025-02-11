@@ -3,6 +3,7 @@ package com.scala.axidraw
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
+import java.nio.file.Files
 import scala.util.{Failure, Success}
 
 class HersheySpec extends AnyWordSpec with Matchers {
@@ -130,6 +131,39 @@ class HersheySpec extends AnyWordSpec with Matchers {
           // Завдяки fallback‑логіці (через withDefault) виклик повертає гліф "missing"
           val fallbackGlyph = font.glyphs(nonExistingKey)
           fallbackGlyph.name shouldEqual "missing"
+      }
+    }
+
+    "експортувати гліф 'A' до SVG файлу" in {
+      // Ініціалізуємо систему шрифтів
+      Hershey.init() match {
+        case Failure(ex) => fail(s"Ініціалізація не вдалася: $ex")
+        case Success(_)  =>
+      }
+
+      val fontKey = "hershey_sans_1"
+      Hershey(fontKey) match {
+        case Failure(exception) => fail(s"Завантаження шрифту '$fontKey' не вдалося: $exception")
+        case Success(hersheyInstance) =>
+          val text = "A"
+          val renderedPaths = hersheyInstance.font.glyphs(text).paths
+
+          // Генеруємо SVG документ із заданими розмірами (наприклад, 500x200)
+          val svgOutput = renderedPaths.toSvg(500, 200)
+          svgOutput should include("<svg")
+          svgOutput should include("<path")
+          svgOutput.length should be > 0
+
+          // Записуємо SVG документ у тимчасовий файл
+          val tmpDir = System.getProperty("java.io.tmpdir")
+          val filePath = java.nio.file.Paths.get(tmpDir, "glyph_A.svg")
+          println(filePath)
+          Files.write(filePath, svgOutput.getBytes("UTF-8"))
+
+          // Читаємо вміст файлу, щоб переконатися, що SVG документ був записаний
+          val fileContent = new String(Files.readAllBytes(filePath), "UTF-8")
+          fileContent should include("<svg")
+          fileContent should include("<path")
       }
     }
   }

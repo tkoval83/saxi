@@ -385,8 +385,8 @@ case class Paths(paths: Seq[Path]) {
   /**
     * Рендерить шляхи, перетворює його у SVG <path> елементи та повертає повноцінний SVG документ.
     *
-    * @param width  Ширина SVG-площини (за замовчуванням 500).
-    * @param height Висота SVG-площини (за замовчуванням 200).
+    * @param width  Ширина SVG-площини.
+    * @param height Висота SVG-площини.
     * @return SVG документ.
     */
   def toSvg(width: Double, height: Double): String = {
