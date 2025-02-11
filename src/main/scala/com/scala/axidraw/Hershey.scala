@@ -1,6 +1,6 @@
 package com.scala.axidraw
 
-import com.scala.axidraw.Hershey.{Font, RenderingOptions, transformGlyph, updateCursor}
+import com.scala.axidraw.Hershey.{Font, Glyph, RenderingOptions}
 import io.circe.generic.semiauto._
 import io.circe.{Decoder, parser}
 
@@ -41,6 +41,34 @@ class Hershey(val font: Font) {
           }
       }
       ._1
+
+  /**
+    * Виконує трансформацію гліфа шляхом переміщення та масштабування.
+    *
+    * @param glyph   Гліф, який необхідно трансформувати.
+    * @param cursor  Початкова позиція, з якої починається рендеринг гліфа.
+    * @param options Опції трансформації, що включають масштабування.
+    * @return Paths – векторні шляхи після застосування трансформації.
+    */
+  private def transformGlyph(glyph: Glyph, cursor: Point, options: RenderingOptions): Paths =
+    glyph.paths
+      .translate(cursor.x, cursor.y)
+      .scale(options.scale)
+
+  /**
+    * Оновлює позицію курсора після рендерингу гліфа.
+    *
+    * Після відображення гліфа позиція курсора коригується з урахуванням ширини символу та додаткового відступу.
+    *
+    * @param cursor  Поточна позиція курсора.
+    * @param glyph   Гліф, що був відрендерений.
+    * @param options Опції рендерингу, які містять масштаб та відступ між символами.
+    * @return Point – нова позиція курсора.
+    */
+  private def updateCursor(cursor: Point, glyph: Glyph, options: RenderingOptions): Point =
+    cursor.copy(
+      x = cursor.x + (glyph.advanceWidth * options.scale) + options.charSpacing
+    )
 }
 
 /**
@@ -344,34 +372,6 @@ object Hershey {
     val tokens = tokenPattern.findAllIn(d).toList
     parse(tokens)
   }
-
-  /**
-    * Виконує трансформацію гліфа шляхом переміщення та масштабування.
-    *
-    * @param glyph   Гліф, який необхідно трансформувати.
-    * @param cursor  Початкова позиція, з якої починається рендеринг гліфа.
-    * @param options Опції трансформації, що включають масштабування.
-    * @return Paths – векторні шляхи після застосування трансформації.
-    */
-  private def transformGlyph(glyph: Glyph, cursor: Point, options: RenderingOptions): Paths =
-    glyph.paths
-      .translate(cursor.x, cursor.y)
-      .scale(options.scale)
-
-  /**
-    * Оновлює позицію курсора після рендерингу гліфа.
-    *
-    * Після відображення гліфа позиція курсора коригується з урахуванням ширини символу та додаткового відступу.
-    *
-    * @param cursor  Поточна позиція курсора.
-    * @param glyph   Гліф, що був відрендерений.
-    * @param options Опції рендерингу, які містять масштаб та відступ між символами.
-    * @return Point – нова позиція курсора.
-    */
-  private def updateCursor(cursor: Point, glyph: Glyph, options: RenderingOptions): Point =
-    cursor.copy(
-      x = cursor.x + (glyph.advanceWidth * options.scale) + options.charSpacing
-    )
 
   /**
     * Клас, що містить опції рендерингу тексту.
