@@ -1,6 +1,6 @@
 package com.scala.axidraw
 
-import com.scala.axidraw.Hershey.{Font, Glyph, RenderingOptions}
+import com.scala.axidraw.Hershey.{Font, Glyph, RenderingOptions, TextAlignment}
 import io.circe.generic.semiauto._
 import io.circe.{Decoder, parser}
 
@@ -27,15 +27,21 @@ class Hershey(val font: Font) {
     * @return Paths Об'єднані векторні шляхи для всього тексту
     */
   def renderText(text: String, options: RenderingOptions = RenderingOptions()): Paths = {
-    val lines = text.split('\n').toList
+    val lines = options.maxLineWidth match {
+      case Some(width) => splitIntoWrappedLines(text, width, options)
+      case None        => text.split('\n').toList
+    }
+
     val lineHeight = font.fontFace.unitsPerEm * options.scale + options.lineSpacing
+
     lines
       .foldLeft((Paths.empty, options.origin.y)) {
         case ((accPaths, currentY), line) =>
-          val lineOrigin = Point(options.origin.x, currentY)
-          val (linePaths, _) = renderLine(line, lineOrigin, options)
+          val (linePaths, lineWidth) = renderLine(line, Point(0, currentY), options)
+          val offsetX = calculateAlignmentOffset(lineWidth, options)
+          val alignedPaths = linePaths.translate(offsetX, 0)
           val nextY = currentY + lineHeight
-          (accPaths.combine(linePaths), nextY)
+          (accPaths.combine(alignedPaths), nextY)
       }
       ._1
   }
@@ -54,17 +60,56 @@ class Hershey(val font: Font) {
     line: String,
     lineOrigin: Point,
     options: RenderingOptions
-  ): (Paths, Double) =
-    line.foldLeft((Paths.empty, lineOrigin.x)) {
-      case ((acc, cursorX), char) =>
+  ): (Paths, Double) = {
+    val (paths, lineWidth) = line.foldLeft((Paths.empty, 0.0)) {
+      case ((acc, width), char) =>
         font.glyphs
           .get(char.toString)
           .orElse(font.glyphs.get("missing"))
-          .fold((acc, cursorX)) { glyph =>
-            val transformed = transformGlyph(glyph, Point(cursorX, lineOrigin.y), options)
-            val newCursorX = cursorX + (glyph.advanceWidth * options.scale) + options.charSpacing
-            (acc.combine(transformed), newCursorX)
+          .fold((acc, width)) { glyph =>
+            val transformed = transformGlyph(glyph, Point(width, lineOrigin.y), options)
+            val charWidth = glyph.advanceWidth * options.scale + options.charSpacing
+            (acc.combine(transformed), width + charWidth)
           }
+    }
+    (paths, lineWidth)
+  }
+
+  private def calculateAlignmentOffset(lineWidth: Double, options: RenderingOptions): Double =
+    options.maxLineWidth match {
+      case Some(maxWidth) =>
+        options.alignment match {
+          case TextAlignment.Left   => 0.0
+          case TextAlignment.Center => (maxWidth - lineWidth) / 2
+          case TextAlignment.Right  => maxWidth - lineWidth
+        }
+      case None => options.origin.x
+    }
+
+  private def splitIntoWrappedLines(
+    text: String,
+    maxWidth: Double,
+    options: RenderingOptions
+  ): List[String] =
+    text.split('\n').toList.flatMap { line =>
+      line.split(' ').foldLeft((List.empty[String], "")) {
+        case ((lines, currentLine), word) =>
+          val testLine = if (currentLine.isEmpty) word else s"$currentLine $word"
+          val testWidth = calculateLineWidth(testLine, options)
+
+          if (testWidth <= maxWidth) (lines, testLine)
+          else (lines :+ currentLine, word)
+      } match {
+        case (Nil, last)   => List(last)
+        case (lines, last) => lines :+ last
+      }
+    }
+
+  private def calculateLineWidth(line: String, options: RenderingOptions): Double =
+    line.foldLeft(0.0) { (width, char) =>
+      font.glyphs
+        .get(char.toString)
+        .fold(width)(glyph => width + glyph.advanceWidth * options.scale + options.charSpacing)
     }
 
   /**
@@ -391,6 +436,13 @@ object Hershey {
     parse(tokens, Nil, Path(Nil))
   }
 
+  sealed trait TextAlignment
+  object TextAlignment {
+    case object Left extends TextAlignment
+    case object Center extends TextAlignment
+    case object Right extends TextAlignment
+  }
+
   /**
     * Клас, що містить опції рендерингу тексту.
     *
@@ -402,6 +454,8 @@ object Hershey {
     scale: Double = 1.0,
     charSpacing: Double = 0.0,
     lineSpacing: Double = 0.0,
+    alignment: TextAlignment = TextAlignment.Left,
+    maxLineWidth: Option[Double] = None,
     origin: Point = Point.zero
   )
 }
