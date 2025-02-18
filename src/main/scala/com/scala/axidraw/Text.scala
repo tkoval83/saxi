@@ -1,63 +1,69 @@
 package com.scala.axidraw
 
 import com.scala.axidraw.Hershey.Font
-import com.scala.axidraw.GeometryUtils._
-import scala.util.chaining._
+
 import scala.annotation.tailrec
+import scala.util.Success
+import scala.util.chaining._
 
 /**
-  * Головний клас для роботи з текстом, що підтримує векторне відображення.
+  * Головний клас для роботи з векторним текстом.
+  * Дозволяє налаштовувати параметри відображення та генерувати векторні шляхи.
   *
-  * @param content   Текст для відображення
-  * @param modifiers Налаштування зовнішнього вигляду тексту
+  * @param content   Вхідний текст
+  * @param modifiers Налаштування відображення
+  * @param origin    Початкова точка малювання
+  * @param paths     Акумульовані векторні шляхи
   */
 case class Text private (
   content: String,
-  modifiers: Text.Modifiers = Text.Modifiers()
+  modifiers: Text.Modifiers = Text.Modifiers(),
+  origin: Point = Point.zero,
+  paths: Paths = Paths.empty
 ) {
   import Text._
 
   /**
-    * Змінює основний стиль шрифту.
+    * Змінює основний стиль шрифту (серіфний, без зарубок, моноширинний).
     *
-    * @param design Обраний стиль (наприклад, Serif, Sans, Monospace)
-    * @return Новий об'єкт Text з оновленими налаштуваннями шрифту
+    * @param design Обраний стиль з переліку FontDesign
+    * @return Новий екземпляр Text
     */
   def fontDesign(design: FontDesign): Text =
-    copy(modifiers = modifiers.copy(design = design, family = design.defaultFamily))
-    
-  /**
-    * Встановлює конкретне сімейство шрифтів.
-    *
-    * @param family Сімейство шрифтів з доступних або користувацьких
-    * @return Новий об'єкт Text з обраним сімейством шрифтів
-    */
-  def fontFamily(family: FontFamily): Text =
-    copy(modifiers = modifiers.copy(family = family))
+    copy(modifiers = modifiers.copy(design = design))
 
   /**
-    * Змінює вагу шрифту (товщину).
+    * Встановлює конкретне сімейство шрифтів за назвою.
     *
-    * @param weight Бажана вага шрифту (наприклад, Regular, Bold)
-    * @return Новий об'єкт Text з оновленою вагою шрифту
+    * @param familyName Назва сімейства з реєстру FontBook
+    * @return Новий екземпляр Text
+    */
+  def fontFamily(familyName: String): Text =
+    copy(modifiers = modifiers.copy(familyName = familyName))
+
+  /**
+    * Змінює товщину шрифту.
+    *
+    * @param weight Вага з переліку FontWeight (100-900)
+    * @return Новий екземпляр Text
     */
   def fontWeight(weight: FontWeight): Text =
     copy(modifiers = modifiers.copy(weight = weight))
 
   /**
-    * Встановлює розмір шрифту у пунктах.
+    * Встановлює розмір шрифту в пунктах.
     *
-    * @param size Розмір шрифту у пунктах
-    * @return Новий об'єкт Text з заданим розміром шрифту
+    * @param size Розмір у типографічних пунктах
+    * @return Новий екземпляр Text
     */
   def fontSize(size: Double): Text =
     copy(modifiers = modifiers.copy(size = size))
 
   /**
-    * Вмикає або вимикає курсивне накреслення.
+    * Керує курсивним накресленням.
     *
-    * @param enabled true – ввімкнути курсив, false – вимкнути
-    * @return Новий об'єкт Text з оновленою опцією курсиву
+    * @param enabled true - увімкнути курсив, false - звичайний стиль
+    * @return Новий екземпляр Text
     */
   def italic(enabled: Boolean = true): Text =
     copy(modifiers = modifiers.copy(italic = enabled))
@@ -65,8 +71,8 @@ case class Text private (
   /**
     * Задає відстань між символами (трекінг).
     *
-    * @param value Значення трекінгу
-    * @return Новий об'єкт Text з оновленим інтервалом між символами
+    * @param value Значення додаткової відстані
+    * @return Новий екземпляр Text
     */
   def tracking(value: Double): Text =
     copy(modifiers = modifiers.copy(tracking = value))
@@ -74,8 +80,8 @@ case class Text private (
   /**
     * Фіксує максимальну ширину текстового блоку.
     *
-    * @param width Максимальна ширина текстового блоку у пунктах
-    * @return Новий об'єкт Text з обмеженням за шириною
+    * @param width Максимальна ширина в пунктах
+    * @return Новий екземпляр Text
     */
   def frame(width: Double): Text =
     copy(modifiers = modifiers.copy(frameWidth = Some(width)))
@@ -84,24 +90,24 @@ case class Text private (
     * Обмежує кількість відображуваних рядків.
     *
     * @param limit Максимальна кількість рядків
-    * @return Новий об'єкт Text з обмеженням кількості рядків
+    * @return Новий екземпляр Text
     */
   def lineLimit(limit: Int): Text =
     copy(modifiers = modifiers.copy(lineLimit = Some(limit)))
 
   /**
-    * Встановлює вирівнювання тексту у межах блоку.
+    * Встановлює горизонтальне вирівнювання тексту.
     *
-    * @param align Вирівнювання тексту (Leading, Center, Trailing)
-    * @return Новий об'єкт Text з обраним вирівнюванням
+    * @param align Тип вирівнювання з TextAlignment
+    * @return Новий екземпляр Text
     */
   def alignment(align: TextAlignment): Text =
     copy(modifiers = modifiers.copy(alignment = align))
 
   /**
-    * Генерує векторні шляхи для відображення тексту.
+    * Генерує векторні шляхи для візуалізації тексту.
     *
-    * @return Об'єкт Paths, який містить векторні контури тексту
+    * @return Об'єкт Paths з векторним представленням
     */
   def render(): Paths = {
     val effectiveFont = resolveEffectiveFont()
@@ -111,9 +117,9 @@ case class Text private (
     processContent(effectiveFont, scale)
       .zipWithIndex
       .foldLeft(Paths.empty) { case (paths, (line, idx)) =>
-        val lineY = idx * lineHeight
+        val lineY = origin.y + idx * lineHeight
         renderLine(line, effectiveFont, scale)
-          .translate(0, lineY)
+          .translate(origin.x, lineY)
           .pipe(applyDecorations(_, line, effectiveFont, scale))
           .pipe(applyAlignment(_, line, effectiveFont, scale))
           .combine(paths)
@@ -123,34 +129,29 @@ case class Text private (
   /**
     * Визначає активний шрифт на основі налаштувань.
     *
-    * @return Ефективний шрифт для відображення тексту
+    * @return Знайдений або резервний шрифт
     */
   private def resolveEffectiveFont(): Font = {
-    val baseFont = modifiers.family.getFont(modifiers.weight, modifiers.italic)
-      .orElse(modifiers.design.defaultFamily.getFont(modifiers.weight, modifiers.italic))
+    val style = if (modifiers.italic) FontStyle.Italic else FontStyle.Normal
     
-    baseFont.getOrElse {
-      println(s"Шрифт не знайдено. Використовується стандартний.")
-      FontFamily.DefaultFont
+    FontBook.findFont(
+      familyName = modifiers.familyName,
+      weight = modifiers.weight,
+      style = style
+    ).getOrElse {
+      println("Шрифт не знайдено. Використовується резервний.")
+      FontBook.getFallbackFont
     }
   }
 
   /**
     * Розраховує висоту рядка з урахуванням інтервалів.
-    *
-    * @param font  Використовуваний шрифт
-    * @param scale Масштаб відображення
-    * @return Висота рядка у пунктах
     */
   private def calculateLineHeight(font: Font, scale: Double): Double = 
     (font.fontFace.ascent - font.fontFace.descent) * scale + modifiers.lineSpacing
 
   /**
-    * Обробляє текст для подальшого відображення.
-    *
-    * @param font  Використовуваний шрифт
-    * @param scale Масштаб відображення
-    * @return Список рядків тексту після обробки та перенесення
+    * Обробляє текст: переносить слова, обрізає кількість рядків.
     */
   private def processContent(font: Font, scale: Double): List[String] = {
     val rawLines = modifiers.frameWidth match {
@@ -160,61 +161,30 @@ case class Text private (
     rawLines.take(modifiers.lineLimit.getOrElse(Int.MaxValue))
   }
 
-  /**
-    * Розбиває текст на рядки з перенесенням слів за заданою максимальною шириною.
-    *
-    * @param text     Вхідний текст
-    * @param maxWidth Максимальна ширина рядка (у пунктах)
-    * @param font     Використовуваний шрифт
-    * @param acc      Акумулятор для зберігання результатів
-    * @return Список рядків після перенесення
-    */
   @tailrec
   private def wrapText(text: String, maxWidth: Double, font: Font, acc: List[String] = Nil): List[String] = {
-    if (text.isEmpty) acc.reverse
-    else {
+    if (text.isEmpty) acc.reverse else {
       val (line, remaining) = findBreakPoint(text, maxWidth, font)
       wrapText(remaining, maxWidth, font, line :: acc)
     }
   }
 
-  /**
-    * Розбиває надто довге слово на дві частини.
-    *
-    * @param word     Слово, яке потрібно розбити
-    * @param maxWidth Максимальна ширина (у пунктах)
-    * @param font     Використовуваний шрифт
-    * @return Кортеж, де перший елемент – перша частина слова з дефісом, а другий – залишок слова
-    */
   private def splitLongWord(word: String, maxWidth: Double, font: Font): (String, String) = {
     @tailrec
     def loop(idx: Int, currentWidth: Double): (String, String) = {
-      if (idx >= word.length) (word, "")
-      else {
-        val char = word(idx)
-        val charWidth = font.glyphs.get(char.toString).map(_.advanceWidth).getOrElse(0.0)
-        if (currentWidth + charWidth > maxWidth && idx > 0) {
-          val part1 = word.substring(0, idx) + "-"
-          val part2 = word.substring(idx)
-          (part1, part2)
-        } else {
+      if (idx >= word.length) (word, "") else {
+        val charWidth = font.glyphs.get(word(idx).toString)
+          .map(_.advanceWidth).getOrElse(0.0)
+        
+        if ((currentWidth + charWidth > maxWidth) && idx > 0)
+          (word.substring(0, idx) + "-", word.substring(idx))
+        else
           loop(idx + 1, currentWidth + charWidth)
-        }
       }
     }
     loop(0, 0.0)
   }
 
-  /**
-    * Знаходить оптимальну точку розриву для перенесення тексту.
-    *
-    * Якщо перше слово перевищує максимальну ширину, воно розбивається.
-    *
-    * @param text     Оброблюваний текст
-    * @param maxWidth Максимальна ширина рядка (у пунктах)
-    * @param font     Використовуваний шрифт
-    * @return Кортеж, де перший елемент – рядок для відображення, а другий – залишок тексту
-    */
   private def findBreakPoint(text: String, maxWidth: Double, font: Font): (String, String) = {
     val words = text.split(" ").toList
     @tailrec
@@ -223,7 +193,7 @@ case class Text private (
       case word :: tail =>
         if (acc.isEmpty && measureLine(word, font) > maxWidth) {
           val (part1, part2) = splitLongWord(word, maxWidth, font)
-          (part1, (if (part2.nonEmpty) part2 :: tail else tail).mkString(" "))
+          (part1, (part2 +: tail).mkString(" "))
         } else {
           val testLine = (acc :+ word).mkString(" ")
           if (measureLine(testLine, font) > maxWidth && acc.nonEmpty)
@@ -235,14 +205,6 @@ case class Text private (
     loop(Nil, words)
   }
 
-  /**
-    * Генерує векторні шляхи для окремого рядка тексту.
-    *
-    * @param line  Рядок тексту
-    * @param font  Використовуваний шрифт
-    * @param scale Масштаб відображення
-    * @return Об'єкт Paths, що містить векторні шляхи для рядка
-    */
   private def renderLine(line: String, font: Font, scale: Double): Paths = {
     line.foldLeft((Paths.empty, 0.0)) { 
       case ((paths, x), char) =>
@@ -256,66 +218,32 @@ case class Text private (
     }._1
   }
 
-  /**
-    * Додає декоративні елементи (підкреслення та закреслення) до тексту.
-    *
-    * @param paths  Поточні векторні шляхи
-    * @param line   Рядок тексту
-    * @param font   Використовуваний шрифт
-    * @param scale  Масштаб відображення
-    * @return Об'єкт Paths з доданими декоративними елементами
-    */
   private def applyDecorations(paths: Paths, line: String, font: Font, scale: Double): Paths = {
     val underlinePath = if (modifiers.underline) renderUnderline(line, font, scale) else Paths.empty
-    val strikePath    = if (modifiers.strikethrough) renderStrikethrough(line, font, scale) else Paths.empty
+    val strikePath = if (modifiers.strikethrough) renderStrikethrough(line, font, scale) else Paths.empty
     paths.combine(underlinePath).combine(strikePath)
   }
 
-  /**
-    * Створює шлях для підкреслення тексту.
-    *
-    * @param line  Рядок тексту
-    * @param font  Використовуваний шрифт
-    * @param scale Масштаб відображення
-    * @return Об'єкт Paths, що містить контур підкреслення
-    */
   private def renderUnderline(line: String, font: Font, scale: Double): Paths = {
-    val lineWidth  = measureLine(line, font) * scale
-    val yPosition  = (-font.fontFace.descent * 0.9) * scale // 90% нижче базової лінії
+    val lineWidth = measureLine(line, font) * scale
+    val yPosition = (-font.fontFace.descent * 0.9) * scale
     Paths(Seq(Path(Seq(
       Point(0, yPosition),
       Point(lineWidth, yPosition)
     ))))
   }
 
-  /**
-    * Створює шлях для закреслення тексту.
-    *
-    * @param line  Рядок тексту
-    * @param font  Використовуваний шрифт
-    * @param scale Масштаб відображення
-    * @return Об'єкт Paths, що містить контур закреслення
-    */
   private def renderStrikethrough(line: String, font: Font, scale: Double): Paths = {
-    val lineWidth  = measureLine(line, font) * scale
-    val yPosition  = (font.fontFace.ascent * 0.45) * scale // 45% вище базової лінії
+    val lineWidth = measureLine(line, font) * scale
+    val yPosition = (font.fontFace.ascent * 0.45) * scale
     Paths(Seq(Path(Seq(
       Point(0, yPosition),
       Point(lineWidth, yPosition)
     ))))
   }
 
-  /**
-    * Застосовує вирівнювання до векторних шляхів.
-    *
-    * @param paths  Поточні векторні шляхи
-    * @param line   Рядок тексту
-    * @param font   Використовуваний шрифт
-    * @param scale  Масштаб відображення
-    * @return Об'єкт Paths, що містить вирівняні векторні шляхи
-    */
   private def applyAlignment(paths: Paths, line: String, font: Font, scale: Double): Paths = {
-    val lineWidth  = measureLine(line, font) * scale
+    val lineWidth = measureLine(line, font) * scale
     val frameWidth = modifiers.frameWidth.getOrElse(lineWidth)
     val offset = modifiers.alignment match {
       case TextAlignment.Leading  => 0.0
@@ -325,220 +253,42 @@ case class Text private (
     paths.translate(offset, 0)
   }
 
-  /**
-    * Вимірює довжину рядка тексту у пунктах.
-    *
-    * @param line Рядок тексту
-    * @param font Використовуваний шрифт
-    * @return Довжина рядка у пунктах
-    */
   private def measureLine(line: String, font: Font): Double =
     line.map(c => font.glyphs.get(c.toString).fold(0.0)(_.advanceWidth)).sum
 }
 
-/**
-  * Супутній об'єкт з визначеннями типів та конфігурацій для роботи з текстом.
-  */
 object Text {
-
-  /**
-    * Трейт, що визначає вагу шрифту.
-    */
-  sealed trait FontWeight {
-    /**
-      * Товщина шрифту.
-      */
-    def thickness: Int
+  /** Тип вирівнювання тексту */
+  sealed trait TextAlignment
+  
+  object TextAlignment {
+    /** Вирівнювання по лівому краю */
+    case object Leading extends TextAlignment
+    /** Центрування по горизонталі */
+    case object Center extends TextAlignment
+    /** Вирівнювання по правому краю */
+    case object Trailing extends TextAlignment
   }
-
-  /**
-    * Об'єкт, що містить стандартні значення ваги шрифту.
-    */
-  object FontWeight {
-    case object UltraLight extends FontWeight { val thickness = 100 }
-    case object Thin       extends FontWeight { val thickness = 200 }
-    case object Light      extends FontWeight { val thickness = 300 }
-    case object Regular    extends FontWeight { val thickness = 400 }
-    case object Medium     extends FontWeight { val thickness = 500 }
-    case object Semibold   extends FontWeight { val thickness = 600 }
-    case object Bold       extends FontWeight { val thickness = 700 }
-    case object Heavy      extends FontWeight { val thickness = 800 }
-    case object Black      extends FontWeight { val thickness = 900 }
-  }
-
-  /**
-    * Модель варіанту шрифту (вага + курсив).
-    *
-    * @param weight Вага шрифту
-    * @param italic Прапорець, що вказує на курсивне накреслення (за замовчуванням false)
-    */
-  case class FontVariant(weight: FontWeight, italic: Boolean = false)
-
-  /**
-    * Сімейство шрифтів із наявними варіантами.
-    *
-    * @param name     Назва сімейства шрифтів
-    * @param variants Список доступних варіантів у вигляді пар (FontVariant, Font)
-    */
-  case class FontFamily(
-    name: String,
-    variants: List[(FontVariant, Font)]
-  ) {
-    /**
-      * Знаходить найближчу доступну вагу шрифту за різницею товщини.
-      *
-      * @param target Бажана вага шрифту
-      * @return Найближча за товщиною вага
-      */
-    private def findClosestWeight(target: FontWeight): FontWeight =
-      variants.map(_._1.weight).distinct.minBy(w => math.abs(w.thickness - target.thickness))
-
-    /**
-      * Пошук шрифту за заданими параметрами.
-      *
-      * Логіка пошуку:
-      *   1. Шукається точна відповідність за вагою та курсивом.
-      *   2. Якщо точного збігу немає, шукається найближча вага серед тих, що мають потрібний курсив.
-      *   3. Якщо і цього не вдається, використовується найближча за товщиною вага серед усіх варіантів.
-      *
-      * @param weight Бажана вага шрифту
-      * @param italic Чи потрібен курсив
-      * @return Опціональний шрифт
-      */
-    def getFont(weight: FontWeight, italic: Boolean): Option[Font] = {
-      val exactMatch = variants.find { case (v, _) => v.weight == weight && v.italic == italic }
-      val italicMatch = variants.filter { case (v, _) => v.italic == italic } match {
-        case Nil => None
-        case italicVariants =>
-          val closest = italicVariants.map(_._1.weight).distinct.minBy(w => math.abs(w.thickness - weight.thickness))
-          variants.find { case (v, _) => v.weight == closest && v.italic == italic }
-      }
-      val fallback = {
-        val closest = findClosestWeight(weight)
-        variants.find { case (v, _) => v.weight == closest }
-      }
-      exactMatch.orElse(italicMatch).orElse(fallback).map(_._2)
-    }
-  }
-
-  /**
-    * Базовий стиль шрифту.
-    */
-  sealed trait FontDesign {
-    /**
-      * Сімейство шрифтів за замовчуванням для даного стилю.
-      *
-      * @return Сімейство шрифтів
-      */
-    def defaultFamily: FontFamily
-  }
-
-  /**
-    * Об'єкт, що містить стандартні варіанти дизайну шрифту.
-    */
-  object FontDesign {
-    /**
-      * Стиль з зарубками (Serif).
-      */
-    case object Serif extends FontDesign {
-      def defaultFamily = FontFamily.HersheySerif
-    }
-    /**
-      * Стиль без зарубок (Sans).
-      */
-    case object Sans extends FontDesign {
-      def defaultFamily = FontFamily.HersheySans
-    }
-    /**
-      * Моноширинний стиль (Monospace).
-      */
-    case object Monospace extends FontDesign {
-      def defaultFamily = FontFamily.EMSTech
-    }
-  }
-
-  /**
-    * Попередньо визначені сімейства шрифтів.
-    */
-  object FontFamily {
-    /**
-      * Завантажує шрифт через API Hershey.
-      *
-      * @param name Назва шрифту для завантаження
-      * @return Завантажений шрифт
-      * @throws FontLoadException Якщо шрифт не вдається завантажити
-      */
-    private def loadHersheyFont(name: String): Font =
-      Hershey(name).fold(
-        err => throw new FontLoadException(s"Помилка завантаження шрифту $name: $err"),
-        _.font
-      )
-
-    /**
-      * Стандартний шрифт за замовчуванням.
-      */
-    val DefaultFont: Font = loadHersheyFont("hershey_sans_1")
-
-    /**
-      * Серіфне сімейство шрифтів Hershey.
-      */
-    val HersheySerif = FontFamily(
-      "Hershey Serif",
-      List(
-        (FontVariant(FontWeight.Regular), loadHersheyFont("hershey_serif")),
-        (FontVariant(FontWeight.Medium),  loadHersheyFont("hershey_serif_med")),
-        (FontVariant(FontWeight.Bold),    loadHersheyFont("hershey_serif_bold"))
-      )
-    )
-
-    /**
-      * Сімейство без зарубок Hershey.
-      */
-    val HersheySans = FontFamily(
-      "Hershey Sans",
-      List(
-        (FontVariant(FontWeight.Regular), loadHersheyFont("hershey_sans_1")),
-        (FontVariant(FontWeight.Medium),  loadHersheyFont("hershey_sans_med"))
-      )
-    )
-
-    /**
-      * Технічне моноширинне сімейство EMS.
-      */
-    val EMSTech = FontFamily(
-      "EMS Tech",
-      List(
-        (FontVariant(FontWeight.Regular), loadHersheyFont("ems_tech"))
-      )
-    )
-  }
-
-  /**
-    * Виняток, який виникає при невдалій спробі завантаження шрифту.
-    *
-    * @param message Повідомлення про помилку
-    */
-  class FontLoadException(message: String) extends RuntimeException(message)
 
   /**
     * Контейнер параметрів відображення тексту.
     *
-    * @param design        Основний стиль шрифту
-    * @param family        Вибране сімейство шрифтів
-    * @param weight        Вага шрифту
-    * @param size          Розмір шрифту у пунктах
-    * @param italic        Прапорець, що вказує на курсивне накреслення
+    * @param design        Стиль шрифту
+    * @param familyName    Назва сімейства
+    * @param weight        Товщина шрифту
+    * @param size          Розмір у пунктах
+    * @param italic        Курсивне накреслення
     * @param tracking      Відстань між символами
-    * @param lineSpacing   Інтервал між рядками
-    * @param underline     Прапорець, що вказує на підкреслення
-    * @param strikethrough Прапорець, що вказує на закреслення
-    * @param frameWidth    Максимальна ширина текстового блоку
-    * @param lineLimit     Максимальна кількість рядків
-    * @param alignment     Вирівнювання тексту
+    * @param lineSpacing   Відстань між рядками
+    * @param underline     Підкреслення
+    * @param strikethrough Закреслення
+    * @param frameWidth    Макс. ширина блоку
+    * @param lineLimit     Макс. кількість рядків
+    * @param alignment     Горизонтальне вирівнювання
     */
   case class Modifiers(
-    design: FontDesign = FontDesign.Serif,
-    family: FontFamily = FontDesign.Serif.defaultFamily,
+    design: FontDesign = FontDesign.Sans,
+    familyName: String = "Hershey Sans",
     weight: FontWeight = FontWeight.Regular,
     size: Double = 14.0,
     italic: Boolean = false,
@@ -551,47 +301,24 @@ object Text {
     alignment: TextAlignment = TextAlignment.Leading
   )
 
-  /**
-    * Створення текстового об'єкта зі стандартними налаштуваннями.
-    *
-    * @param content Текст для відображення
-    * @return Новий об'єкт Text
-    */
+  /** Фабричний метод для створення тексту зі стандартними налаштуваннями */
   def apply(content: String): Text = new Text(content)
-  
-  /**
-    * Створення текстового об'єкта з користувацьким шрифтом.
-    *
-    * @param content Текст для відображення
-    * @param font    Користувацький шрифт
-    * @return Новий об'єкт Text
-    */
-  def apply(content: String, font: Font): Text =
-    new Text(content, Modifiers(family = FontFamily("Custom", List(
-      (FontVariant(FontWeight.Regular), font),
-      (FontVariant(FontWeight.Regular, italic = true), font)
-    ))))
 
   /**
-    * Тип вирівнювання тексту.
+    * Створює текст з користувацьким шрифтом.
+    *
+    * @param content Текст для відображення
+    * @param font    Об'єкт шрифту
+    * @param design  Базовий дизайн
     */
-  sealed trait TextAlignment
-  /**
-    * Об'єкт, що містить варіанти вирівнювання тексту.
-    */
-  object TextAlignment {
-    /**
-      * Вирівнювання за лівим краєм.
-      */
-    case object Leading extends TextAlignment
-    /**
-      * Центрування тексту.
-      */
-    case object Center extends TextAlignment
-    /**
-      * Вирівнювання за правим краєм.
-      */
-    case object Trailing extends TextAlignment
+  def apply(content: String, font: Font, design: FontDesign): Text = {
+    val familyName = s"Custom-${java.util.UUID.randomUUID().toString.take(8)}"
+    FontBook.registerFamily(FontFamily(
+      name = familyName,
+      design = design,
+      variants = List((FontVariant(FontWeight.Regular), Success(font)))
+    ))
+    new Text(content, Modifiers(design = design, familyName = familyName))
   }
 }
 
