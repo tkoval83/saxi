@@ -101,6 +101,38 @@ case class Canvas(
     copy(paths = paths.center(effectiveWidth, effectiveHeight))
   }
 
+  /**
+   * Генерує повноцінний SVG-документ на основі поточних шляхів Canvas.
+   *
+   * SVG-документ враховує фізичні параметри пристрою, орієнтацію, padding та початкову точку.
+   *
+   * @return SVG-документ у вигляді рядка.
+   */
+  def toSvg: String = {
+    val (effectiveWidth, effectiveHeight) = effectiveDimensions
+
+    val (viewMinX, viewMinY, viewMaxX, viewMaxY) = effectiveBounds
+    val viewBox = s"$viewMinX $viewMinY ${viewMaxX - viewMinX} ${viewMaxY - viewMinY}"
+
+    val svgPaths = paths.paths
+      .map { path =>
+        if (path.points.nonEmpty) {
+          val moveTo = s"M${path.points.head.x},${path.points.head.y}"
+          val lines = path.points.tail.map(pt => s"L${pt.x},${pt.y}").mkString(" ")
+          s"""<path d=\"$moveTo $lines\" fill=\"none\" stroke=\"black\" stroke-width=\"1\"/>"""
+        } else ""
+      }
+      .mkString("\n")
+
+    s"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+       |<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"$effectiveWidth\" height=\"$effectiveHeight\" viewBox=\"$viewBox\">
+       |  <g transform=\"translate(${origin.x}, ${origin.y})\">
+       |    $svgPaths
+       |  </g>
+       |</svg>
+       |""".stripMargin
+  }
+
 }
 
 object Canvas {
